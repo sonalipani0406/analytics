@@ -1,0 +1,15 @@
+__pycache__
+venv
+.env
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.pyc
+.pytest_cache
+.coverage
+frontend/.next
+frontend/node_modules
+frontend/out
+*.log
+.DS_Store

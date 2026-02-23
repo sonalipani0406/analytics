@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+venv
+GEMINI.md
+backend/.sonar/.sonar_lock
+frontend/.scannerwork/.sonar_lock
+frontend/.scannerwork/report-task.txt
+backend/.sonar/report-task.txt
+frontend/pnpm-workspace.yaml

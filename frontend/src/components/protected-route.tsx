@@ -9,28 +9,31 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Skip auth check for login page
-    if (pathname === "/login") {
-      setIsAuthenticated(true);
-      return;
-    }
-
     const checkAuth = async () => {
       const token = localStorage.getItem("authToken");
+      
+      // If on login page, allow access regardless of auth
+      if (pathname === "/login") {
+        setIsReady(true);
+        setIsAuthenticated(false); // Don't mark as authenticated on login page
+        return;
+      }
 
+      // For other pages, require authentication
       if (!token) {
-        setIsAuthenticated(false);
+        // No token - redirect to login
         router.push("/login");
         return;
       }
 
       try {
-        // Verify token with backend
+        // Verify token is still valid
         const response = await fetch("/api/auth/verify", {
           method: "GET",
           headers: {
@@ -42,38 +45,46 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           // Token invalid or expired
           localStorage.removeItem("authToken");
           localStorage.removeItem("userData");
-          setIsAuthenticated(false);
           router.push("/login");
           return;
         }
 
+        // Token is valid
         setIsAuthenticated(true);
+        setIsReady(true);
       } catch (error) {
         console.error("Auth check failed:", error);
         localStorage.removeItem("authToken");
         localStorage.removeItem("userData");
-        setIsAuthenticated(false);
         router.push("/login");
       }
     };
 
     checkAuth();
-  }, [router, pathname]);
+  }, [pathname, router]);
 
-  if (isAuthenticated === null) {
+  // Loading state
+  if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Verifying access...</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated && pathname !== "/login") {
-    return null; // Router will redirect
+  // If on login page, always show it
+  if (pathname === "/login") {
+    return <>{children}</>;
   }
 
-  return <>{children}</>;
+  // For dashboard pages, only show if authenticated
+  if (isAuthenticated) {
+    return <>{children}</>;
+  }
+
+  // Should not reach here due to redirect, but just in case
+  return null;
 }

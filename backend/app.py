@@ -12,7 +12,7 @@ import jwt
 import time
 from functools import wraps
 from sites_config import get_sites_list, get_site_url
-from auth_config import verify_gcp_token, extract_user_info, GCP_CLIENT_ID, JWT_SECRET_KEY, ALLOWED_DOMAIN
+from auth_config import verify_gcp_token, extract_user_info, GCP_CLIENT_ID, JWT_SECRET_KEY
 
 load_dotenv()
 
@@ -123,10 +123,10 @@ def login():
         if not idinfo:
             return jsonify({'message': 'Invalid GCP token'}), 401
         
-        # Extract and validate user info
+        # Extract user info
         user_info = extract_user_info(idinfo)
         if not user_info:
-            return jsonify({'message': f'Email domain not allowed. Only @{ALLOWED_DOMAIN} emails are permitted'}), 403
+            return jsonify({'message': 'Failed to extract user information'}), 400
         
         # Create JWT token
         payload = {

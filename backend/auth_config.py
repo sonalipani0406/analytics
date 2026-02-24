@@ -3,10 +3,12 @@ import os
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-# GCP OAuth2 Configuration
+# GCP OAuth2 Configuration - Hardcoded Client ID
 GCP_CLIENT_ID = "753011261618-k46db0seqt8d5m0lljb14378ogrium9f.apps.googleusercontent.com"
-ALLOWED_DOMAIN = "rbg.iitm.ac.in"
-JWT_SECRET_KEY = "super-long-and-secure-secret-key"  # Change
+JWT_SECRET_KEY = "super-long-and-secure-secret-key"  # Change in production
+
+# Note: Email domain whitelisting is configured in GCP Console
+# OAuth consent screen → User verification → Allowed domains
 
 # Token verification
 def verify_gcp_token(token):
@@ -25,15 +27,6 @@ def verify_gcp_token(token):
         print(f"Token verification failed: {str(e)}")
         return None
 
-def is_allowed_email(email):
-    """
-    Check if email domain is allowed
-    """
-    if not email:
-        return False
-    domain = email.split('@')[1] if '@' in email else ''
-    return domain.lower() == ALLOWED_DOMAIN.lower()
-
 def extract_user_info(idinfo):
     """
     Extract user information from ID token
@@ -43,10 +36,7 @@ def extract_user_info(idinfo):
     
     email = idinfo.get('email', '')
     
-    # Verify email domain
-    if not is_allowed_email(email):
-        return None
-    
+    # Domain validation is handled by GCP OAuth consent screen configuration
     return {
         'email': email,
         'name': idinfo.get('name', ''),

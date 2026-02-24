@@ -94,7 +94,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-2 text-center">
           <CardTitle className="text-3xl font-bold">Analytics Dashboard</CardTitle>
           <CardDescription>
-            Sign in with your @rbg.iitm.ac.in email
+            Sign in with your organization email
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -119,7 +119,7 @@ export default function LoginPage() {
 
           <div className="text-center text-xs text-muted-foreground border-t pt-4">
             <p><strong>Access Policy:</strong></p>
-            <p className="mt-1">Only @rbg.iitm.ac.in email addresses are allowed to access this dashboard.</p>
+            <p className="mt-1">Only authorized organization email addresses are allowed to access this dashboard.</p>
           </div>
         </CardContent>
       </Card>

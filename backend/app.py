@@ -251,13 +251,23 @@ def track():
         if first_seen_raw is not None:
             try:
                 if isinstance(first_seen_raw, (int, float)) or (isinstance(first_seen_raw, str) and first_seen_raw.isdigit()):
-                    ts = int(first_seen_raw)
-                    if ts > 10**12: ts = ts // 1000
-                    if ts > 10**10: ts = ts // 1000
-                    first_seen = datetime.fromtimestamp(ts / 1000 if ts > 10**9 else ts, datetime.timezone.utc).isoformat()
+                    ts = int(float(first_seen_raw))
+                    
+                    # JavaScript Date.now() returns milliseconds
+                    # Convert to seconds
+                    if ts > 10**11:  # More than ~3000 years in seconds, likely milliseconds
+                        ts = ts // 1000
+                    
+                    # Create timezone-aware datetime in UTC
+                    first_seen = datetime.fromtimestamp(ts, timezone.utc).isoformat()
                 else:
-                    first_seen = date_parse(str(first_seen_raw)).isoformat()
-            except Exception:
+                    # Try parsing as string
+                    dt = date_parse(str(first_seen_raw))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    first_seen = dt.isoformat()
+            except Exception as e:
+                app.logger.error(f"Error parsing timestamp {first_seen_raw}: {e}")
                 first_seen = None
 
         time_spent_seconds = None

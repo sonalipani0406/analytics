@@ -115,15 +115,15 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-            <div className="w-full md:w-48">
+            <div className="w-full md:w-56">
               <Select value={selectedSite} onValueChange={setSelectedSite}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-primary text-primary-foreground font-bold shadow-md border-primary hover:bg-primary/90">
                   <SelectValue placeholder="Select a site" />
                 </SelectTrigger>
                 <SelectContent>
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
-                      {site.name}
+                      <span className="font-semibold">{site.name}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

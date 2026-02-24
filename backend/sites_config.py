@@ -16,6 +16,26 @@ SITES = {
         "name": "Localhost (Port 3000)",
         "url": "http://localhost:3000",
         "description": "Frontend dev server"
+    },
+    "sanjaya": {
+        "name": "Sanjaya",
+        "url": "https://rbg.iitm.ac.in/sanjaya/",
+        "description": "Sanjaya application"
+    },
+    "fps": {
+        "name": "FPS",
+        "url": "https://rbg.iitm.ac.in/fps/",
+        "description": "FPS application"
+    },
+    "tpl": {
+        "name": "TPL",
+        "url": "https://rbg.iitm.ac.in/tpl/",
+        "description": "TPL application"
+    },
+    "rath": {
+        "name": "RATH",
+        "url": "https://rbg.iitm.ac.in/RATH/",
+        "description": "RATH application"
     }
 }
 

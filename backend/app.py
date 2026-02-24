@@ -123,60 +123,34 @@ def get_analytics():
         else:
             app.logger.info(f"Custom dates provided")
 
-        # If custom or explicit dates provided, determine granularity
-        # If period is 'day' but start/end provided (e.g. specific day selected), use 'hour' granularity if range is small
-        # If custom or explicit dates provided, determine granularity
-        # If period is 'day' but start/end provided (e.g. specific day selected), use 'hour' granularity if range is small
-        if params['start_date_filter']:
-             # Basic granularity heuristic
-             try:
-                 s = params['start_date_filter']
-                 e = params['end_date_filter']
-                 # If we have dates, let's just default to 'day' unless range is small
-                 granularity = 'day'
-                 
-                 # If period is explicitly 'day' (even with custom dates, like picking Yesterday), force hour
-                 if period == 'day':
-                     granularity = 'hour'
-                 elif period == 'custom':
-                     # Existing logic copy for safety if needed, or simple check
-                     pass 
-             except:
-                 pass
-
-        # Convert empty strings to None and parse dates appropriately
-        # BUT: Only parse if they came from user input (not already been processed by period logic)
-        user_provided_start = request.args.get('start_date_filter')
-        user_provided_end = request.args.get('end_date_filter')
+        # Parse user-provided custom dates (only if they exist)
+        if request.args.get('start_date_filter'):
+            try:
+                dt = date_parse(request.args.get('start_date_filter'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                params['start_date_filter'] = dt.isoformat()
+            except Exception as e:
+                app.logger.error(f"Error parsing start_date: {e}")
+                params['start_date_filter'] = None
+                
+        if request.args.get('end_date_filter'):
+            try:
+                dt = date_parse(request.args.get('end_date_filter'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                # If date-only string, set to end of day
+                if len(request.args.get('end_date_filter', '').strip()) <= 10:
+                    dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+                params['end_date_filter'] = dt.isoformat()
+            except Exception as e:
+                app.logger.error(f"Error parsing end_date: {e}")
+                params['end_date_filter'] = None
         
-        for k, v in params.items():
-            if not v:
+        # Clean up other filters - convert empty strings to None
+        for k in ['country_filter', 'device_filter', 'browser_filter', 'visitor_type_filter', 'url_filter', 'ip_filter', 'isp_filter']:
+            if not params.get(k):
                 params[k] = None
-            else:
-                if k == 'start_date_filter' and user_provided_start:
-                    # Only re-parse if it came from user input (custom period)
-                    try:
-                        dt = date_parse(v)
-                        # Make sure it's timezone-aware
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
-                        params[k] = dt.isoformat()
-                    except Exception:
-                        params[k] = None
-                elif k == 'end_date_filter' and user_provided_end:
-                    # Only re-parse if it came from user input (custom period)
-                    try:
-                        dt = date_parse(v)
-                        # Make sure it's timezone-aware
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
-                        # If date-only string (len 10) or midnight time, assume end of day is desired
-                        # Checking string length is safest if strictly YYYY-MM-DD
-                        if len(str(v).strip()) <= 10 or (dt.hour == 0 and dt.minute == 0):
-                            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
-                        params[k] = dt.isoformat()
-                    except Exception:
-                        params[k] = None
 
         params['granularity'] = granularity
         

@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from user_agents import parse
 import pycountry
+from sites_config import get_sites_list, get_site_url
 
 load_dotenv()
 
@@ -62,6 +63,15 @@ def get_country_code(country_name):
     return None
 
 
+@app.route('/api/sites', methods=['GET', 'OPTIONS'])
+def get_sites():
+    """Return list of available sites for the dropdown"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    sites = get_sites_list()
+    return jsonify({'sites': sites})
+
 
 @app.route('/api/analytics', methods=['GET', 'OPTIONS'])
 def get_analytics():
@@ -82,10 +92,21 @@ def get_analytics():
             'ip_filter': request.args.get('ip_filter'),
             'isp_filter': request.args.get('isp_filter'),
         }
+        
+        # Handle site filter
+        site_filter = request.args.get('site_filter', 'all')
+        site_url = get_site_url(site_filter) if site_filter else None
+        if site_url:
+            # If a specific site is selected, filter by page_visited
+            params['url_filter'] = site_url
+        else:
+            # "All sites" - don't override url_filter (use custom filter if provided)
+            if not request.args.get('url_filter'):
+                params['url_filter'] = None
 
         # Helper for dynamic period logic
         period = request.args.get('period', 'day')
-        app.logger.info(f"Period requested: {period}")
+        app.logger.info(f"Period requested: {period}, Site filter: {site_filter}, URL filter: {params['url_filter']}")
         now = datetime.now(timezone.utc)  # Use UTC timezone-aware datetime
         
         # Defaults

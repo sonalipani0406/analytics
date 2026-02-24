@@ -11,6 +11,7 @@ import { TrafficTimelineChart, TrafficTimelineData } from "@/components/traffic-
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatsGridProps } from "@/components/stats-cards";
 import { FiltersProps } from "@/components/filters";
 
@@ -39,6 +40,25 @@ export default function DashboardPage() {
   const [filters, setFilters] = useState<FiltersState>({});
   const [activeTab, setActiveTab] = useState("analytics");
   const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'custom'>('day');
+  const [selectedSite, setSelectedSite] = useState<string>('all');
+  const [sites, setSites] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Load available sites on mount
+  useEffect(() => {
+    const loadSites = async () => {
+      try {
+        const response = await fetch('/api/sites');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setSites(data.sites || []);
+      } catch (error) {
+        console.error("Failed to load sites:", error);
+      }
+    };
+    loadSites();
+  }, []);
 
   const loadData = async (currentFilters: FiltersState) => {
     const cleanedFilters: { [key: string]: string } = {};
@@ -50,6 +70,9 @@ export default function DashboardPage() {
 
     // Add period to params
     cleanedFilters['period'] = selectedPeriod;
+    
+    // Add site filter
+    cleanedFilters['site_filter'] = selectedSite;
 
     const params = new URLSearchParams(cleanedFilters);
     try {
@@ -68,7 +91,7 @@ export default function DashboardPage() {
     loadData(filters);
     const interval = setInterval(() => loadData(filters), 30000);
     return () => clearInterval(interval);
-  }, [filters, selectedPeriod]);
+  }, [filters, selectedPeriod, selectedSite]);
 
   const handleFiltersChange = (newFilters: FiltersState) => {
     setFilters(newFilters);
@@ -89,37 +112,53 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
       <main className="max-w-7xl mx-auto p-2 md:p-8">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              onClick={() => handlePeriodChange('day')}
-              className={`px-4 py-2 text-sm font-medium border rounded-l-lg ${selectedPeriod === 'day' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
-            >
-              24H
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePeriodChange('week')}
-              className={`px-4 py-2 text-sm font-medium border-t border-b ${selectedPeriod === 'week' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
-            >
-              7D
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePeriodChange('month')}
-              className={`px-4 py-2 text-sm font-medium border-t border-b ${selectedPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
-            >
-              30D
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePeriodChange('custom')}
-              className={`px-4 py-2 text-sm font-medium border rounded-r-lg ${selectedPeriod === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
-            >
-              Custom
-            </button>
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            <div className="w-full md:w-48">
+              <Select value={selectedSite} onValueChange={setSelectedSite}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((site) => (
+                    <SelectItem key={site.id} value={site.id}>
+                      {site.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="inline-flex rounded-md shadow-sm" role="group">
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('day')}
+                className={`px-4 py-2 text-sm font-medium border rounded-l-lg ${selectedPeriod === 'day' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
+              >
+                24H
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('week')}
+                className={`px-4 py-2 text-sm font-medium border-t border-b ${selectedPeriod === 'week' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
+              >
+                7D
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('month')}
+                className={`px-4 py-2 text-sm font-medium border-t border-b ${selectedPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
+              >
+                30D
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('custom')}
+                className={`px-4 py-2 text-sm font-medium border rounded-r-lg ${selectedPeriod === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
+              >
+                Custom
+              </button>
+            </div>
           </div>
         </div>
 

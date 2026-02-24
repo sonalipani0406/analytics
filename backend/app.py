@@ -24,15 +24,24 @@ CORS(app, origins="*", allow_headers=["Content-Type", "Authorization"], methods=
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
 
-# Catch-all for SPA routing
+@app.route('/login')
+def serve_login():
+    """Serve login page"""
+    return send_from_directory(app.static_folder, 'index.html')
+
+# Catch-all for SPA routing - must be last
 @app.route('/<path:path>')
 def serve_static(path):
-    # If file exists, serve it
+    # Skip API routes and auth routes - let them be handled by their specific handlers
+    if path.startswith('api/') or path.startswith('track') or path.startswith('log/'):
+        return '', 404
+    
+    # If file exists as a static file, serve it
     full_path = os.path.join(app.root_path, app.static_folder, path)
     if os.path.exists(full_path) and os.path.isfile(full_path):
         return send_from_directory(app.static_folder, path)
     
-    # Otherwise fallback to index.html for SPA
+    # Otherwise fallback to index.html for SPA routing (Next.js handles client-side routing)
     return send_from_directory(app.static_folder, 'index.html')
 
 # Database connection parameters

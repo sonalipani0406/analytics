@@ -8,7 +8,11 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from user_agents import parse
 import pycountry
+import jwt
+import time
+from functools import wraps
 from sites_config import get_sites_list, get_site_url
+from auth_config import verify_gcp_token, extract_user_info, GCP_CLIENT_ID, JWT_SECRET_KEY, ALLOWED_DOMAIN
 
 load_dotenv()
 
@@ -63,6 +67,106 @@ def get_country_code(country_name):
     return None
 
 
+def token_required(f):
+    """Decorator to verify JWT token"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = None
+        auth_header = request.headers.get('Authorization', '')
+        
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+        
+        if not token:
+            return jsonify({'message': 'Unauthorized: No token provided'}), 401
+        
+        try:
+            data = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+            request.user = data  # Attach user info to request
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Unauthorized: Token expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Unauthorized: Invalid token'}), 401
+        
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+def login():
+    """
+    Exchange GCP ID token for JWT token
+    Expects: {"token": "<gcp_id_token>"}
+    """
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        data = request.get_json()
+        gcp_token = data.get('token')
+        
+        if not gcp_token:
+            return jsonify({'message': 'No token provided'}), 400
+        
+        # Verify GCP token
+        idinfo = verify_gcp_token(gcp_token)
+        if not idinfo:
+            return jsonify({'message': 'Invalid GCP token'}), 401
+        
+        # Extract and validate user info
+        user_info = extract_user_info(idinfo)
+        if not user_info:
+            return jsonify({'message': f'Email domain not allowed. Only @{ALLOWED_DOMAIN} emails are permitted'}), 403
+        
+        # Create JWT token
+        payload = {
+            'email': user_info['email'],
+            'name': user_info['name'],
+            'picture': user_info['picture'],
+            'sub': user_info['sub'],
+            'exp': time.time() + (24 * 60 * 60),  # 24 hour expiration
+            'iat': time.time()
+        }
+        jwt_token = jwt.encode(payload, JWT_SECRET_KEY, algorithm='HS256')
+        
+        return jsonify({
+            'success': True,
+            'token': jwt_token,
+            'user': {
+                'email': user_info['email'],
+                'name': user_info['name'],
+                'picture': user_info['picture']
+            }
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Login error: {str(e)}")
+        return jsonify({'message': f'Login failed: {str(e)}'}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
+def logout():
+    """Logout endpoint (token invalidation on client side)"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    return jsonify({'message': 'Logged out successfully'}), 200
+
+
+@app.route('/api/auth/verify', methods=['GET', 'OPTIONS'])
+@token_required
+def verify_token():
+    """Verify current JWT token and return user info"""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    return jsonify({
+        'success': True,
+        'user': request.user
+    }), 200
+
+
 @app.route('/api/sites', methods=['GET', 'OPTIONS'])
 def get_sites():
     """Return list of available sites for the dropdown"""
@@ -74,6 +178,7 @@ def get_sites():
 
 
 @app.route('/api/analytics', methods=['GET', 'OPTIONS'])
+@token_required
 def get_analytics():
     if request.method == 'OPTIONS':
         return '', 200

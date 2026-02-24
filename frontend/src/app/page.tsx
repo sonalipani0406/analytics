@@ -75,8 +75,18 @@ export default function DashboardPage() {
     cleanedFilters['site_filter'] = selectedSite;
 
     const params = new URLSearchParams(cleanedFilters);
+    
+    // Get auth token
+    const token = localStorage.getItem("authToken");
+    
     try {
-      const response = await fetch(`/api/analytics?${params.toString()}`);
+      const response = await fetch(`/api/analytics?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -116,13 +126,16 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
             <div className="w-full md:w-56">
+              <label className="text-xs font-bold uppercase tracking-wide text-primary mb-2 block">
+                Select Site
+              </label>
               <Select value={selectedSite} onValueChange={setSelectedSite}>
-                <SelectTrigger className="bg-primary text-primary-foreground font-bold shadow-md border-primary hover:bg-primary/90">
+                <SelectTrigger className="bg-primary text-primary-foreground font-bold shadow-lg border-2 border-primary hover:bg-primary/90">
                   <SelectValue placeholder="Select a site" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-primary bg-popover">
                   {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
+                    <SelectItem key={site.id} value={site.id} className="cursor-pointer hover:bg-accent">
                       <span className="font-semibold">{site.name}</span>
                     </SelectItem>
                   ))}

@@ -5,7 +5,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // rewrites are not supported in static export
 };
 
 export default nextConfig;

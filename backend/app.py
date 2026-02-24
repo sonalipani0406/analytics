@@ -70,6 +70,7 @@ def get_analytics():
 
     conn = None
     try:
+        app.logger.info("=== API ANALYTICS REQUEST ===")
         params = {
             'country_filter': request.args.get('country_filter'),
             'start_date_filter': request.args.get('start_date_filter'),
@@ -84,6 +85,7 @@ def get_analytics():
 
         # Helper for dynamic period logic
         period = request.args.get('period', 'day')
+        app.logger.info(f"Period requested: {period}")
         now = datetime.now(timezone.utc)  # Use UTC timezone-aware datetime
         
         # Defaults
@@ -91,6 +93,7 @@ def get_analytics():
         
         # ONLY apply default period logic if explicit dates are NOT provided
         if not params['start_date_filter'] and not params['end_date_filter']:
+            app.logger.info(f"No custom dates provided, using period logic")
             if period == 'day':
                 granularity = 'hour'
                 # Default "24h" view - set end_date to end of today
@@ -98,6 +101,7 @@ def get_analytics():
                 end_date_filter = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
                 params['start_date_filter'] = start_date_filter
                 params['end_date_filter'] = end_date_filter
+                app.logger.info(f"24H: {start_date_filter} to {end_date_filter}")
                 
             elif period == 'week':
                 granularity = 'day'
@@ -106,6 +110,7 @@ def get_analytics():
                 end_date_filter = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
                 params['start_date_filter'] = start_date_filter
                 params['end_date_filter'] = end_date_filter
+                app.logger.info(f"7D: {start_date_filter} to {end_date_filter}")
                 
             elif period == 'month':
                 granularity = 'day'
@@ -114,7 +119,12 @@ def get_analytics():
                 end_date_filter = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
                 params['start_date_filter'] = start_date_filter
                 params['end_date_filter'] = end_date_filter
+                app.logger.info(f"30D: {start_date_filter} to {end_date_filter}")
+        else:
+            app.logger.info(f"Custom dates provided")
 
+        # If custom or explicit dates provided, determine granularity
+        # If period is 'day' but start/end provided (e.g. specific day selected), use 'hour' granularity if range is small
         # If custom or explicit dates provided, determine granularity
         # If period is 'day' but start/end provided (e.g. specific day selected), use 'hour' granularity if range is small
         if params['start_date_filter']:
@@ -135,19 +145,31 @@ def get_analytics():
                  pass
 
         # Convert empty strings to None and parse dates appropriately
+        # BUT: Only parse if they came from user input (not already been processed by period logic)
+        user_provided_start = request.args.get('start_date_filter')
+        user_provided_end = request.args.get('end_date_filter')
+        
         for k, v in params.items():
             if not v:
                 params[k] = None
             else:
-                if k == 'start_date_filter':
+                if k == 'start_date_filter' and user_provided_start:
+                    # Only re-parse if it came from user input (custom period)
                     try:
                         dt = date_parse(v)
+                        # Make sure it's timezone-aware
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
                         params[k] = dt.isoformat()
                     except Exception:
                         params[k] = None
-                elif k == 'end_date_filter':
+                elif k == 'end_date_filter' and user_provided_end:
+                    # Only re-parse if it came from user input (custom period)
                     try:
                         dt = date_parse(v)
+                        # Make sure it's timezone-aware
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
                         # If date-only string (len 10) or midnight time, assume end of day is desired
                         # Checking string length is safest if strictly YYYY-MM-DD
                         if len(str(v).strip()) <= 10 or (dt.hour == 0 and dt.minute == 0):
@@ -159,11 +181,24 @@ def get_analytics():
         params['granularity'] = granularity
         
         # Debug logging
-        print(f"DEBUG API Request - Period: {period}")
-        print(f"DEBUG Params: start_date={params['start_date_filter']}, end_date={params['end_date_filter']}, granularity={granularity}")
+        app.logger.info(f"Final params - start: {params['start_date_filter']}, end: {params['end_date_filter']}, granularity: {granularity}")
         
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Check raw visitor count
+        cur.execute("SELECT COUNT(*) as cnt FROM public.visitors WHERE first_seen IS NOT NULL")
+        visitor_check = cur.fetchone()
+        app.logger.info(f"Total visitors with first_seen: {visitor_check['cnt'] if visitor_check else 0}")
+        
+        # Check visitors in the date range
+        if params['start_date_filter'] and params['end_date_filter']:
+            cur.execute(
+                "SELECT COUNT(*) as cnt FROM public.visitors WHERE first_seen >= %s AND first_seen <= %s",
+                (params['start_date_filter'], params['end_date_filter'])
+            )
+            range_check = cur.fetchone()
+            app.logger.info(f"Visitors in date range ({params['start_date_filter']} to {params['end_date_filter']}): {range_check['cnt'] if range_check else 0}")
         
         # Call the stored function
         cur.execute("""
@@ -186,9 +221,8 @@ def get_analytics():
         result = cur.fetchone()
         data = result['data'] if result else {}
         
-        print(f"DEBUG Result data keys: {list(data.keys()) if data else 'Empty'}")
-        print(f"DEBUG Result charts keys: {list(data.get('charts', {}).keys()) if data else 'No charts'}")
-        print(f"DEBUG Stats: {data.get('stats', {}) if data else 'No stats'}")
+        app.logger.info(f"Result data keys: {list(data.keys()) if data else 'Empty'}")
+        app.logger.info(f"Stats: {data.get('stats', {}) if data else 'No stats'}")
 
         if 'stats' in data:
             stats = data['stats']

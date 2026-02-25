@@ -6,6 +6,7 @@ import { Header } from "@/components/header";
 import { StatsGrid } from "@/components/stats-cards";
 import { Filters } from "@/components/filters";
 import { AnalyticsChartsGrid, GlobalVisitorChart, CityDistributionChart, TopPagesChart } from "@/components/charts";
+import Districts from "@/components/districts";
 import { VisitorsTable, Visitor } from "@/components/visitors-table";
 import { TrafficTimelineChart, TrafficTimelineData } from "@/components/traffic-timeline-chart";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -185,6 +186,7 @@ export default function DashboardPage() {
               <TabsTrigger value="timeline">Traffic Timeline</TabsTrigger>
               <TabsTrigger value="global">Global Visitor Distribution</TabsTrigger>
               <TabsTrigger value="city">City Distribution</TabsTrigger>
+              <TabsTrigger value="districts">Districts</TabsTrigger>
               <TabsTrigger value="pages">Top Pages</TabsTrigger>
               <TabsTrigger value="visitors">Recent Visitor Activity</TabsTrigger>
             </TabsList>
@@ -201,6 +203,7 @@ export default function DashboardPage() {
                 <DropdownMenuItem onSelect={() => setActiveTab("timeline")}>Traffic Timeline</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("global")}>Global Visitor Distribution</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("city")}>City Distribution</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setActiveTab("districts")}>Districts</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("pages")}>Top Pages</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("visitors")}>Recent Visitor Activity</DropdownMenuItem>
               </DropdownMenuContent>
@@ -217,6 +220,9 @@ export default function DashboardPage() {
           </TabsContent>
           <TabsContent value="city">
             <CityDistributionChart data={data?.charts?.by_city || []} />
+          </TabsContent>
+          <TabsContent value="districts">
+            <Districts selectedSite={selectedSite} />
           </TabsContent>
           <TabsContent value="pages">
             <TopPagesChart data={data?.charts?.by_page || []} />

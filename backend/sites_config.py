@@ -15,7 +15,7 @@ SITES = {
     },
     "fps": {
         "name": "FPS",
-        "url": "https://fpsdev.coers.in/#/",
+        "url": "https://rbg.iitm.ac.in/fps/#/",
         "description": "FPS application"
     },
     "tpl": {

@@ -34,7 +34,7 @@ BEGIN
         OR (visitor_type_filter = 'repeated' AND ic.visit_count > 1)
       )
       AND (device_filter IS NULL OR v.device_type = device_filter)
-      AND (url_filter IS NULL OR v.page_visited = url_filter)
+      AND (url_filter IS NULL OR v.page_visited LIKE url_filter || '%')
       AND (browser_filter IS NULL OR v.browser = browser_filter)
       AND (ip_filter IS NULL OR v.public_ip = ip_filter)
       AND (isp_filter IS NULL OR v.isp = isp_filter)

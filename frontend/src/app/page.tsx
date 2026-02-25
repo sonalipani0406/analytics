@@ -76,14 +76,10 @@ export default function DashboardPage() {
 
     const params = new URLSearchParams(cleanedFilters);
     
-    // Get auth token
-    const token = localStorage.getItem("authToken");
-    
     try {
       const response = await fetch(`/api/analytics?${params.toString()}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });

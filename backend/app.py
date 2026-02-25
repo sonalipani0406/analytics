@@ -187,7 +187,6 @@ def get_sites():
 
 
 @app.route('/api/analytics', methods=['GET', 'OPTIONS'])
-@token_required
 def get_analytics():
     if request.method == 'OPTIONS':
         return '', 200

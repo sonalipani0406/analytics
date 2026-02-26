@@ -32,6 +32,12 @@ def get_meta():
     res = make_request(BASE_URL, {"period": "month"})
     return res.get('meta', {}) if res else {}
 
+
+def get_sites():
+    # helper to exercise the new /api/sites endpoint
+    res = make_request("http://localhost:5000/api/sites")
+    return res.get('sites', []) if res else []
+
 def generate_combinations(meta):
     # dynamic values from DB
     countries = [""] + [c for c in meta.get('distinct_countries', []) if c]
@@ -106,6 +112,18 @@ def run_tests():
     combos = generate_combinations(meta)
     print(f"Generated {len(combos)} test combinations.")
     
+    # additional sanity check: hit analytics with each site id
+    sites = get_sites()
+    if sites:
+        print("Checking site filters:")
+        for site in sites:
+            params = {"site_filter": site.get('id')}
+            result = make_request(BASE_URL, params)
+            count = result.get('stats', {}).get('total_visitors', 0) if result else None
+            print(f"  site={site.get('id')} visitors={count}")
+    else:
+        print("No sites returned from /api/sites; skipping site filter check")
+
     passed = 0
     failed = 0
     empty_results = 0

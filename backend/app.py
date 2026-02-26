@@ -210,8 +210,10 @@ def get_analytics():
         site_filter = request.args.get('site_filter', 'all')
         site_url = get_site_url(site_filter) if site_filter else None
         if site_url:
-            # If a specific site is selected, filter by page_visited
-            params['url_filter'] = site_url
+            # If a specific site is selected, filter by page_visited.  we lowercase
+            # the pattern here to match the ILIKE used inside the stored function
+            # and to avoid any accidental case sensitivity issues.
+            params['url_filter'] = site_url.lower()
         else:
             # "All sites" - don't override url_filter (use custom filter if provided)
             if not request.args.get('url_filter'):

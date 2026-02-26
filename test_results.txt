@@ -1,0 +1,8 @@
+[1/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': None, 'device_filter': None, 'visitor_type_filter': None} | Error: Request Failed
+[2/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': None, 'device_filter': None, 'visitor_type_filter': 'unique'} | Error: Request Failed
+[3/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': None, 'device_filter': None, 'visitor_type_filter': 'repeated'} | Error: Request Failed
+[4/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': None, 'device_filter': 'Desktop', 'visitor_type_filter': None} | Error: Request Failed
+[5/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': None, 'device_filter': 'Desktop', 'visitor_type_filter': 'unique'} | Error: Request Failed
+[6/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': None, 'device_filter': 'Desktop', 'visitor_type_filter': 'repeated'} | Error: Request Failed
+[7/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': 'Chrome', 'device_filter': None, 'visitor_type_filter': None} | Error: Request Failed
+[8/216] FAIL | Params: {'period': 'day', 'country_filter': None, 'browser_filter': 'Chrome', 'device_filter': None, 'visitor_type_filter': 'unique'} | Error: Request Failed

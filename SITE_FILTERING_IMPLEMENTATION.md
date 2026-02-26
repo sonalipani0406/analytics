@@ -117,9 +117,16 @@ The site will automatically appear in:
 ## Technical Details
 
 ### URL Pattern Matching
-- Uses PostgreSQL LIKE pattern: `page_visited LIKE 'http://localhost:5000%'`
-- Matches any page visited on the selected domain
-- Case-sensitive (adjustable if needed)
+- Uses PostgreSQL pattern matching on the page URL.
+
+  The backend now normalises the configured URL prefix by stripping any
+  trailing slash so that *both* the root and sub‑routes are matched.  Because
+  data coming from different clients may mix upper‑/lower‑case characters the
+  database query uses `ILIKE` for case‑insensitive comparison, e.g. the filter
+  ``https://rbg.iitm.ac.in/tpl`` will match ``https://rbg.iitm.ac.in/TPL/Main``
+  as well as ``https://rbg.iitm.ac.in/tpl/user``.
+
+- Matches any page visited on the selected domain (including deeper paths)
 
 ### CORS/OPTIONS Support
 - Both `/api/sites` and `/api/analytics` include OPTIONS method for CORS preflight

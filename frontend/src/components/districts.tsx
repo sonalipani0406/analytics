@@ -77,8 +77,12 @@ export default function Districts({
         if (json.error) {
           throw new Error(json.error || json.status || 'Unknown error');
         }
+        // upstream returns a status string; only treat it as an error
         if (json.status && typeof json.status === 'string') {
-          throw new Error(json.status);
+          const code = json.statusCode || '';
+          if (/^(5|4)/.test(code) || json.status.toLowerCase().startsWith('failed')) {
+            throw new Error(json.status);
+          }
         }
 
         let list: AppUser[] = [];

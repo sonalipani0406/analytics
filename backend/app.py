@@ -563,7 +563,7 @@ def get_app_users():
     Query params
     ------------
     app        : app slug (default: fps)
-    period     : day | week | month (default: day)
+    period     : day | week | month | all (default: day)
     start_date : ISO date string – overrides period-based calculation
     end_date   : ISO date string – overrides period-based calculation
     """
@@ -587,28 +587,54 @@ def get_app_users():
         elif period == 'month':
             start_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
             end_date = now.strftime('%Y-%m-%d')
+        elif period == 'all':
+            # For 'all', use empty strings (no date filtering)
+            start_date = ''
+            end_date = ''
+        # else: if period is unknown, start_date and end_date remain empty strings
 
     upstream_url = APP_USER_ENDPOINTS.get(app_slug)
     if not upstream_url:
         return jsonify({'error': f'Unknown app: {app_slug}', 'users': []}), 400
 
     payload = _json.dumps({'start_date': start_date, 'end_date': end_date}).encode('utf-8')
+    
+    # Comprehensive headers to match browser request
+    headers = {
+        'content-type': 'application/json',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'DNT': '1',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="120", "Chromium";v="120"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"'
+    }
+    
     req = urllib.request.Request(
         upstream_url,
         data=payload,
-        headers={'content-type': 'application/json', 'Accept': '*/*'},
+        headers=headers,
         method='POST',
     )
 
     try:
+        app.logger.info(f"Proxying request to {upstream_url} with dates: {start_date} to {end_date}")
         ssl_ctx = ssl.create_default_context()
         with urllib.request.urlopen(req, context=ssl_ctx, timeout=20) as resp:
             raw = resp.read().decode('utf-8')
+        app.logger.info(f"Upstream response received ({len(raw)} bytes)")
         data = _json.loads(raw)
         return jsonify(data)
     except Exception as e:
-        app.logger.error(f'Error fetching app-users ({app_slug}): {e}')
-        return jsonify({'error': str(e), 'users': []}), 200
+        app.logger.error(f'Error fetching app-users ({app_slug}): {e}', exc_info=True)
+        return jsonify({'error': str(e), 'users': []}), 500
 
 
 if __name__ == '__main__':

@@ -40,7 +40,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [filters, setFilters] = useState<FiltersState>({});
   const [activeTab, setActiveTab] = useState("analytics");
-  const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'custom'>('day');
+  const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'all' | 'custom'>('day');
   const [selectedSite, setSelectedSite] = useState<string>('all');
   const [sites, setSites] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -104,7 +104,7 @@ export default function DashboardPage() {
     setFilters(newFilters);
   };
 
-  const handlePeriodChange = (period: 'day' | 'week' | 'month' | 'custom') => {
+  const handlePeriodChange = (period: 'day' | 'week' | 'month' | 'all' | 'custom') => {
     setSelectedPeriod(period);
   };
 
@@ -160,6 +160,13 @@ export default function DashboardPage() {
                 className={`px-4 py-2 text-sm font-medium border-t border-b ${selectedPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
               >
                 30D
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePeriodChange('all')}
+                className={`px-4 py-2 text-sm font-medium border-t border-b ${selectedPeriod === 'all' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}
+              >
+                All 
               </button>
               <button
                 type="button"

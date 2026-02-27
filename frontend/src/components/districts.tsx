@@ -18,7 +18,7 @@ interface FiltersState {
 
 interface DistrictsProps {
   selectedSite?: string;
-  selectedPeriod?: "day" | "week" | "month" | "custom";
+  selectedPeriod?: "day" | "week" | "month" | "all" | "custom";
   filters?: FiltersState;
 }
 

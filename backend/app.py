@@ -1,5 +1,6 @@
 import os
 import ssl
+import threading
 import urllib.request
 import json as _json
 import psycopg2
@@ -26,9 +27,14 @@ CORS(app, origins="*", allow_headers=["Content-Type", "Authorization"], methods=
 # ensure SQL definitions are applied once the app starts handling
 # requests.  this keeps the Docker init script from being the only place
 # the function gets updated.
-@app.before_first_request
-def _init_db():
-    ensure_db_functions()
+# NOTE: @app.before_first_request was removed in Flask 3.x – use a flag instead.
+_db_init_done = threading.Event()
+
+@app.before_request
+def _init_db_once():
+    if not _db_init_done.is_set():
+        ensure_db_functions()
+        _db_init_done.set()
 
 @app.route('/')
 def serve_index():

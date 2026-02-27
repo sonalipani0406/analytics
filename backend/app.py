@@ -572,32 +572,22 @@ def get_app_users():
 
     app_slug = request.args.get('app', 'fps').lower()
     period = request.args.get('period', 'day')
-    start_date = request.args.get('start_date', '')
-    end_date = request.args.get('end_date', '')
+    # start_date and end_date may be supplied by the client; default to empty strings
+    start_date = request.args.get('start_date', '') or ''
+    end_date = request.args.get('end_date', '') or ''
 
-    # Derive date range from period when no explicit dates are given
-    if not start_date and not end_date:
-        now = datetime.now(timezone.utc)
-        if period == 'day':
-            start_date = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-            end_date = now.strftime('%Y-%m-%d')
-        elif period == 'week':
-            start_date = (now - timedelta(days=7)).strftime('%Y-%m-%d')
-            end_date = now.strftime('%Y-%m-%d')
-        elif period == 'month':
-            start_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
-            end_date = now.strftime('%Y-%m-%d')
-        elif period == 'all':
-            # For 'all', use empty strings (no date filtering)
-            start_date = ''
-            end_date = ''
-        # else: if period is unknown, start_date and end_date remain empty strings
-
+    # We used to convert period into specific start/end dates, but the
+    # upstream service handles empty strings itself.  Sending computed dates
+    # caused "data/time field value out of range" errors when the range
+    # included the current day.  Leaving the values empty avoids the problem
+    # and keeps the behaviour consistent with the curl example.
     upstream_url = APP_USER_ENDPOINTS.get(app_slug)
     if not upstream_url:
         return jsonify({'error': f'Unknown app: {app_slug}', 'users': []}), 400
 
     payload = _json.dumps({'start_date': start_date, 'end_date': end_date}).encode('utf-8')
+    # log what we are sending so troubleshooting is easier
+    app.logger.info(f"app-users payload start={start_date!r} end={end_date!r} period={period}")
     
     # Comprehensive headers to match browser request
     headers = {

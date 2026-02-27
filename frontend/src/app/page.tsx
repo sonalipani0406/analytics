@@ -181,14 +181,14 @@ export default function DashboardPage() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="hidden md:block">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7 text-xs">
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
-              <TabsTrigger value="timeline">Traffic Timeline</TabsTrigger>
-              <TabsTrigger value="global">Global Visitor Distribution</TabsTrigger>
-              <TabsTrigger value="city">City Distribution</TabsTrigger>
+              <TabsTrigger value="timeline">Timeline</TabsTrigger>
+              <TabsTrigger value="global">Global</TabsTrigger>
+              <TabsTrigger value="city">City</TabsTrigger>
               <TabsTrigger value="districts">Districts</TabsTrigger>
               <TabsTrigger value="pages">Top Pages</TabsTrigger>
-              <TabsTrigger value="visitors">Recent Visitor Activity</TabsTrigger>
+              <TabsTrigger value="visitors">Visitors</TabsTrigger>
             </TabsList>
           </div>
           <div className="block md:hidden mb-4">
@@ -222,7 +222,11 @@ export default function DashboardPage() {
             <CityDistributionChart data={data?.charts?.by_city || []} />
           </TabsContent>
           <TabsContent value="districts">
-            <Districts selectedSite={selectedSite} />
+            <Districts
+              selectedSite={selectedSite}
+              selectedPeriod={selectedPeriod}
+              filters={filters}
+            />
           </TabsContent>
           <TabsContent value="pages">
             <TopPagesChart data={data?.charts?.by_page || []} />

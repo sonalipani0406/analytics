@@ -1,4 +1,7 @@
 import os
+import ssl
+import urllib.request
+import json as _json
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from datetime import datetime, timezone, timedelta
@@ -534,6 +537,73 @@ def log_time():
     finally:
         if conn:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# App-specific user-detail endpoints (proxied to external FSA service)
+# ---------------------------------------------------------------------------
+
+# Registry of app slugs → upstream POST endpoint
+APP_USER_ENDPOINTS = {
+    'fps': 'https://coers.iitm.ac.in/fsa/user_det',
+    # add more app entries here: 'myapp': 'https://...',
+}
+
+
+@app.route('/api/app-users', methods=['GET', 'OPTIONS'])
+def get_app_users():
+    """Proxy request to the FSA user-detail endpoint.
+
+    Query params
+    ------------
+    app        : app slug (default: fps)
+    period     : day | week | month (default: day)
+    start_date : ISO date string – overrides period-based calculation
+    end_date   : ISO date string – overrides period-based calculation
+    """
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    app_slug = request.args.get('app', 'fps').lower()
+    period = request.args.get('period', 'day')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+
+    # Derive date range from period when no explicit dates are given
+    if not start_date and not end_date:
+        now = datetime.now(timezone.utc)
+        if period == 'day':
+            start_date = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+            end_date = now.strftime('%Y-%m-%d')
+        elif period == 'week':
+            start_date = (now - timedelta(days=7)).strftime('%Y-%m-%d')
+            end_date = now.strftime('%Y-%m-%d')
+        elif period == 'month':
+            start_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
+            end_date = now.strftime('%Y-%m-%d')
+
+    upstream_url = APP_USER_ENDPOINTS.get(app_slug)
+    if not upstream_url:
+        return jsonify({'error': f'Unknown app: {app_slug}', 'users': []}), 400
+
+    payload = _json.dumps({'start_date': start_date, 'end_date': end_date}).encode('utf-8')
+    req = urllib.request.Request(
+        upstream_url,
+        data=payload,
+        headers={'content-type': 'application/json', 'Accept': '*/*'},
+        method='POST',
+    )
+
+    try:
+        ssl_ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, context=ssl_ctx, timeout=20) as resp:
+            raw = resp.read().decode('utf-8')
+        data = _json.loads(raw)
+        return jsonify(data)
+    except Exception as e:
+        app.logger.error(f'Error fetching app-users ({app_slug}): {e}')
+        return jsonify({'error': str(e), 'users': []}), 200
+
 
 if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'

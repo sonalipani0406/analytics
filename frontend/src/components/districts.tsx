@@ -192,8 +192,10 @@ export default function Districts() {
 
         // Use the per-app extract fn to pull the correct array from the response
         const raw: AppUser[] = appConfig.extract(json);
-        // Apply per-app normalise so column keys always match the config
-        setAllUsers(raw.map(appConfig.normalise));
+        console.log("[Districts] app:", selectedApp, "| raw count:", raw.length, "| first raw:", raw[0]);
+        const normalised = raw.map(appConfig.normalise);
+        console.log("[Districts] first normalised:", normalised[0]);
+        setAllUsers(normalised);
       } catch (e: any) {
         setError(e.message);
         setAllUsers([]);

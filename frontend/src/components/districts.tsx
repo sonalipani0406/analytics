@@ -90,20 +90,18 @@ const APP_OPTIONS: {
     label:    "TPL App",
     url:      "https://coers.iitm.ac.in/baseline/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
-    loginKey: ["last_login", "last_seen", "lastLogin", "last_active"],
+    loginKey: [], // TPL has no last_login field — period filter is skipped
     columns: [
       { key: "user_id",       label: "User ID"       },
       { key: "state",         label: "State"         },
       { key: "district",      label: "District"      },
       { key: "hospital_name", label: "Hospital Name" },
-      { key: "last_login",    label: "Last Login"    },
     ],
     normalise: (d) => ({
-      user_id:       d.user_id        || d.id          || d.userId       || "",
-      state:         d.state          || d.state_name  || "",
-      district:      d.district_name  || d.district    || "",
-      hospital_name: d.hospital_name  || d.hospital    || d.facility_name || d.facilityName || "",
-      last_login:    d.last_login     || d.last_seen   || d.lastLogin    || "",
+      user_id:       d.user_id       || String(d.userid ?? "") || "",
+      state:         d.state_name    || d.state               || "",
+      district:      d.district_name || d.district            || "",
+      hospital_name: d.hospname      || d.hospital_name       || d.hospital || "",
     }),
   },
 
@@ -231,7 +229,8 @@ export default function Districts() {
       if (districtSearch && !dist.includes(districtSearch.toLowerCase())) return false;
 
       // ── period filter (client-side, using per-app loginKey list) ──
-      if (cutoffStart || cutoffEnd) {
+      // Skip entirely if this app has no login date field (loginKey is empty)
+      if (appConfig.loginKey.length > 0 && (cutoffStart || cutoffEnd)) {
         const loginStr = getField(u, ...appConfig.loginKey);
         if (loginStr === "—") return false; // no login date → exclude from period view
         const loginDate = new Date(loginStr);

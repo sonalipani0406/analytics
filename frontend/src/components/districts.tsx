@@ -95,7 +95,7 @@ const APP_OPTIONS: {
     label:    "TPL App",
     url:      "https://coers.iitm.ac.in/baseline/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
-    extract:  (json) => Array.isArray(json?.details?.hospitals) ? json.details.hospitals : [],
+    extract:  (json) => Array.isArray(json?.details?.users) ? json.details.users : [],
     loginKey: [], // no last_login field — period filter is skipped for TPL
     columns: [
       { key: "user_id",       label: "User ID"       },

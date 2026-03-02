@@ -14,10 +14,36 @@ type LocalPeriod = "24h" | "7d" | "30d" | "all" | "custom";
 
 
 
-// ── App registry — add one line per new app ────────────────────────────────
+// =============================================================================
+// ✏️  APP CONFIG — THE ONLY PLACE YOU NEED TO EDIT TO ADD A NEW APP
+//
+//   value   : unique slug (used internally)
+//   label   : name shown in the dropdown
+//   url     : POST endpoint that returns user data
+//   payload : a function returning the JSON body — adjust keys to match the API
+//
+// Example — to add a new app whose API expects { "from_date", "to_date" }:
+//   {
+//     value:   "myapp",
+//     label:   "My App",
+//     url:     "https://example.com/api/users",
+//     payload: (start, end) => ({ from_date: start, to_date: end }),
+//   },
+// =============================================================================
 const APP_OPTIONS = [
-  { value: "fps",     label: "FPS App",     url: "https://coers.iitm.ac.in/fsa/user_det"     },
-  { value: "sanjaya", label: "Sanjaya App", url: "https://coers.iitm.ac.in/fsa/dss_user_det" },
+  {
+    value:   "fps",
+    label:   "FPS App",
+    url:     "https://coers.iitm.ac.in/fsa/user_det",
+    payload: (start: string, end: string) => ({ start_date: start, end_date: end }),
+  },
+  {
+    value:   "sanjaya",
+    label:   "Sanjaya App",
+    url:     "https://coers.iitm.ac.in/fsa/dss_user_det",
+    payload: (start: string, end: string) => ({ start_date: start, end_date: end }),
+  },
+  // ── add more apps below this line ──────────────────────────────────────────
 ];
 
 // ── Period tab definitions ─────────────────────────────────────────────────
@@ -98,7 +124,8 @@ export default function Districts() {
         const res = await fetch(appConfig.url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ start_date: derivedStart, end_date: derivedEnd }),
+          // uses the per-app payload fn — different apps can have different body keys
+          body: JSON.stringify(appConfig.payload(derivedStart, derivedEnd)),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -139,15 +166,35 @@ export default function Districts() {
 
   // ── Filter → sort → paginate ──────────────────────────────────────────
   const filteredSorted = useMemo(() => {
-    let rows = allUsers.filter(u => {
+    // Build cutoff boundaries from the selected period.
+    // The external API ignores date params, so we filter client-side on last_login.
+    const cutoffStart = derivedStart ? new Date(derivedStart) : null;
+    // end-of-day so today's logins are included
+    const cutoffEnd   = derivedEnd   ? new Date(derivedEnd + "T23:59:59") : null;
+
+    let rows = allUsers.filter((u: AppUser) => {
+      // ── name filter ──
       const name = getField(u, "user_name", "name", "username").toLowerCase();
+      if (nameSearch && !name.includes(nameSearch.toLowerCase())) return false;
+
+      // ── district filter ──
       const dist = getField(u, "district").toLowerCase();
-      if (nameSearch     && !name.includes(nameSearch.toLowerCase()))     return false;
       if (districtSearch && !dist.includes(districtSearch.toLowerCase())) return false;
+
+      // ── period filter (client-side by last_login) ──
+      if (cutoffStart || cutoffEnd) {
+        const loginStr = getField(u, "last_login", "last_seen", "lastLogin", "last_active");
+        if (loginStr === "—") return false; // no login date → exclude from period view
+        const loginDate = new Date(loginStr);
+        if (isNaN(loginDate.getTime())) return true; // unparseable → keep the row
+        if (cutoffStart && loginDate < cutoffStart) return false;
+        if (cutoffEnd   && loginDate > cutoffEnd)   return false;
+      }
+
       return true;
     });
 
-    rows = [...rows].sort((a, b) => {
+    rows = [...rows].sort((a: AppUser, b: AppUser) => {
       const av = getField(a, sortCol).toLowerCase();
       const bv = getField(b, sortCol).toLowerCase();
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
@@ -155,7 +202,7 @@ export default function Districts() {
     });
 
     return rows;
-  }, [allUsers, nameSearch, districtSearch, sortCol, sortDir]);
+  }, [allUsers, nameSearch, districtSearch, sortCol, sortDir, derivedStart, derivedEnd]);
 
   const displayedUsers = useMemo(
     () => (perPage === 0 ? filteredSorted : filteredSorted.slice(0, perPage)),

@@ -164,3 +164,16 @@ useEffect(() => {
 - Add site-level analytics export functionality
 - Create site performance comparison view
 - Add site deletion/management for self-hosted instances
+
+
+
+##How to add a new app in future for table
+Just add one object to  APP_OPTIONS with:
+
+ url — the POST endpoint
+ payload — function returning the request body (adjust keys if the API uses different names like from_date)
+ loginKey — field names to look for the login timestamp (for 24H/7D/30D filtering)
+ columns — ordered list of { key, label } for the table headers
+ normalise — maps each raw API row to a flat object whose keys match columns[].key
+TPL App —  normalise field names
+The  normalise function for TPL tries d.user_id || d.id || d.userId, d.hospital_name || d.hospital || d.facility_name, etc. If the actual API uses different field names, just adjust the  normalise function for that entry — no other code needs to change.

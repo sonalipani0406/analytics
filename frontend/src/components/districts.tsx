@@ -14,36 +14,100 @@ type LocalPeriod = "24h" | "7d" | "30d" | "all" | "custom";
 
 
 
+// ── Column type ────────────────────────────────────────────────────────────
+type ColDef = { key: string; label: string };
+
 // =============================================================================
 // ✏️  APP CONFIG — THE ONLY PLACE YOU NEED TO EDIT TO ADD A NEW APP
 //
-//   value   : unique slug (used internally)
-//   label   : name shown in the dropdown
-//   url     : POST endpoint that returns user data
-//   payload : a function returning the JSON body — adjust keys to match the API
+//   value    : unique slug (used internally)
+//   label    : name shown in the dropdown
+//   url      : POST endpoint that returns user data
+//   payload  : function → JSON body sent to the API (adjust keys per app)
+//   loginKey : field name(s) that hold the last-login timestamp (for period filter)
+//   columns  : ordered list of columns to show in the table
+//   normalise: function that maps a raw API row → a flat AppUser object
+//              (keys must match the `key` values in `columns`)
 //
-// Example — to add a new app whose API expects { "from_date", "to_date" }:
-//   {
-//     value:   "myapp",
-//     label:   "My App",
-//     url:     "https://example.com/api/users",
-//     payload: (start, end) => ({ from_date: start, to_date: end }),
-//   },
+// To add a new app, just add one more object below.
 // =============================================================================
-const APP_OPTIONS = [
+const APP_OPTIONS: {
+  value: string;
+  label: string;
+  url: string;
+  payload: (start: string, end: string) => Record<string, string>;
+  loginKey: string[];
+  columns: ColDef[];
+  normalise: (raw: AppUser) => AppUser;
+}[] = [
+  // ── FPS App ────────────────────────────────────────────────────────────────
   {
-    value:   "fps",
-    label:   "FPS App",
-    url:     "https://coers.iitm.ac.in/fsa/user_det",
-    payload: (start: string, end: string) => ({ start_date: start, end_date: end }),
+    value:    "fps",
+    label:    "FPS App",
+    url:      "https://coers.iitm.ac.in/fsa/user_det",
+    payload:  (start, end) => ({ start_date: start, end_date: end }),
+    loginKey: ["last_login", "last_seen", "lastLogin", "last_active"],
+    columns: [
+      { key: "user_name",      label: "User Name"      },
+      { key: "user_role",      label: "User Role"      },
+      { key: "district",       label: "District"       },
+      { key: "police_station", label: "Police Station" },
+      { key: "last_login",     label: "Last Login"     },
+    ],
+    normalise: (d) => ({
+      user_name:      d.rep_name      || d.user_name   || d.name     || d.username || "",
+      user_role:      d.user_role     || d.role        || "",
+      district:       d.district_name || d.district    || "",
+      police_station: d.police_station|| d.ps          || d.policeStation || "",
+      last_login:     d.last_login    || d.last_seen   || d.lastLogin || "",
+    }),
   },
+
+  // ── Sanjaya App ────────────────────────────────────────────────────────────
   {
-    value:   "TPL",
-    label:   "TPL App",
-    url:     "https://coers.iitm.ac.in/baseline/export_all_data",
-    payload: (start: string, end: string) => ({ start_date: start, end_date: end }),
+    value:    "sanjaya",
+    label:    "Sanjaya App",
+    url:      "https://coers.iitm.ac.in/fsa/dss_user_det",
+    payload:  (start, end) => ({ start_date: start, end_date: end }),
+    loginKey: ["last_login", "last_seen", "lastLogin", "last_active"],
+    columns: [
+      { key: "user_name",  label: "User Name"  },
+      { key: "user_role",  label: "User Role"  },
+      { key: "district",   label: "District"   },
+      { key: "last_login", label: "Last Login" },
+    ],
+    normalise: (d) => ({
+      user_name:  d.rep_name      || d.user_name || d.name     || d.username || "",
+      user_role:  d.user_role     || d.role      || "",
+      district:   d.district_name || d.district  || "",
+      last_login: d.last_login    || d.last_seen || d.lastLogin || "",
+    }),
   },
-  // ── add more apps below this line ──────────────────────────────────────────
+
+  // ── TPL App ────────────────────────────────────────────────────────────────
+  {
+    value:    "tpl",
+    label:    "TPL App",
+    url:      "https://coers.iitm.ac.in/baseline/export_all_data",
+    payload:  (start, end) => ({ start_date: start, end_date: end }),
+    loginKey: ["last_login", "last_seen", "lastLogin", "last_active"],
+    columns: [
+      { key: "user_id",       label: "User ID"       },
+      { key: "state",         label: "State"         },
+      { key: "district",      label: "District"      },
+      { key: "hospital_name", label: "Hospital Name" },
+      { key: "last_login",    label: "Last Login"    },
+    ],
+    normalise: (d) => ({
+      user_id:       d.user_id        || d.id          || d.userId       || "",
+      state:         d.state          || d.state_name  || "",
+      district:      d.district_name  || d.district    || "",
+      hospital_name: d.hospital_name  || d.hospital    || d.facility_name || d.facilityName || "",
+      last_login:    d.last_login     || d.last_seen   || d.lastLogin    || "",
+    }),
+  },
+
+  // ── Add more apps here ─────────────────────────────────────────────────────
 ];
 
 // ── Period tab definitions ─────────────────────────────────────────────────
@@ -53,15 +117,6 @@ const PERIOD_TABS: { value: LocalPeriod; label: string }[] = [
   { value: "30d",    label: "30D"    },
   { value: "all",    label: "All"    },
   { value: "custom", label: "Custom" },
-];
-
-// ── Column definitions ─────────────────────────────────────────────────────
-const COLUMNS = [
-  { key: "user_name",      label: "User Name"       },
-  { key: "user_role",      label: "User Role"       },
-  { key: "district",       label: "District"        },
-  { key: "police_station", label: "Police Station"  },
-  { key: "last_login",     label: "Last Login"      },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -106,6 +161,9 @@ export default function Districts() {
   // Pagination  (0 = show all)
   const [perPage, setPerPage] = useState<number>(10);
 
+  // ── Active app config ─────────────────────────────────────────────────
+  const appConfig = APP_OPTIONS.find(a => a.value === selectedApp) ?? APP_OPTIONS[0];
+
   // ── Derived date range ────────────────────────────────────────────────
   const { start: derivedStart, end: derivedEnd } = useMemo(() => {
     if (localPeriod === "custom") return { start: customStart, end: customEnd };
@@ -114,8 +172,6 @@ export default function Districts() {
 
   // ── Fetch directly from external API ─────────────────────────────────
   useEffect(() => {
-    const appConfig = APP_OPTIONS.find(a => a.value === selectedApp);
-    if (!appConfig) return;
 
     const fetchUsers = async () => {
       setLoading(true);
@@ -130,24 +186,17 @@ export default function Districts() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
-        // Normalise: handle {details:[...]}, {users:[...]}, or a bare array
-        let list: AppUser[] = [];
+        // Extract the raw array from whatever shape the API returns
+        let raw: AppUser[] = [];
         if (Array.isArray(json)) {
-          list = json;
-        } else if (Array.isArray(json.details)) {
-          list = json.details.map((d: AppUser) => ({
-            user_name:      d.rep_name || d.name || d.username || "",
-            user_role:      d.user_role || d.role || "",
-            district:       d.district_name || d.district || "",
-            police_station: d.police_station || d.ps || "",
-            last_login:     d.last_login || "",
-          }));
+          raw = json;
         } else {
-          for (const key of ["users", "data", "results"]) {
-            if (Array.isArray(json[key])) { list = json[key]; break; }
+          for (const key of ["details", "users", "data", "results"]) {
+            if (Array.isArray(json[key])) { raw = json[key]; break; }
           }
         }
-        setAllUsers(list);
+        // Apply per-app normalise function so columns always match the config
+        setAllUsers(raw.map(appConfig.normalise));
       } catch (e: any) {
         setError(e.message);
         setAllUsers([]);
@@ -181,9 +230,9 @@ export default function Districts() {
       const dist = getField(u, "district").toLowerCase();
       if (districtSearch && !dist.includes(districtSearch.toLowerCase())) return false;
 
-      // ── period filter (client-side by last_login) ──
+      // ── period filter (client-side, using per-app loginKey list) ──
       if (cutoffStart || cutoffEnd) {
-        const loginStr = getField(u, "last_login", "last_seen", "lastLogin", "last_active");
+        const loginStr = getField(u, ...appConfig.loginKey);
         if (loginStr === "—") return false; // no login date → exclude from period view
         const loginDate = new Date(loginStr);
         if (isNaN(loginDate.getTime())) return true; // unparseable → keep the row
@@ -340,14 +389,14 @@ export default function Districts() {
           <div className="text-sm text-destructive py-2">Error: {error}</div>
         )}
 
-        {/* Table */}
+        {/* Table — columns come from appConfig.columns, fully dynamic */}
         {!loading && !error && (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/50 text-left">
                   <th className="px-4 py-2 font-semibold">#</th>
-                  {COLUMNS.map(c => (
+                  {appConfig.columns.map(c => (
                     <th
                       key={c.key}
                       className="px-4 py-2 font-semibold cursor-pointer select-none hover:bg-muted/80 transition-colors"
@@ -362,7 +411,7 @@ export default function Districts() {
               <tbody>
                 {displayedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={COLUMNS.length + 1} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={appConfig.columns.length + 1} className="px-4 py-8 text-center text-muted-foreground">
                       {allUsers.length === 0
                         ? "No user data available for the selected period."
                         : "No users match the current filters."}
@@ -372,17 +421,14 @@ export default function Districts() {
                   displayedUsers.map((u, i) => (
                     <tr key={i} className="border-t hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
-                      <td className="px-4 py-2 font-medium">
-                        {getField(u, "user_name", "name", "username")}
-                      </td>
-                      <td className="px-4 py-2">{getField(u, "user_role", "role")}</td>
-                      <td className="px-4 py-2">{getField(u, "district")}</td>
-                      <td className="px-4 py-2">
-                        {getField(u, "police_station", "ps", "policeStation", "police_station_name")}
-                      </td>
-                      <td className="px-4 py-2 text-muted-foreground">
-                        {getField(u, "last_login", "last_seen", "lastLogin", "last_active")}
-                      </td>
+                      {appConfig.columns.map((c, ci) => (
+                        <td
+                          key={c.key}
+                          className={`px-4 py-2${ci === 0 ? " font-medium" : ""}`}
+                        >
+                          {getField(u, c.key)}
+                        </td>
+                      ))}
                     </tr>
                   ))
                 )}

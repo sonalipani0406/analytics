@@ -76,32 +76,46 @@ const APP_OPTIONS: {
   },
 
   // ── Sanjaya App ────────────────────────────────────────────────────────────
-  // Response shape: same as FPS — { details: [ { rep_name, user_role, district_name, last_login }, ... ] }
+  // Response shape: { details: { admins: [], surveys: [], users: [ { userid, state_name, district_name, stakeholder, last_login }, ... ] } }
+  // Extracts from all three arrays (users, admins, surveys) and tags each with source role
   {
     value:    "sanjaya",
     label:    "Sanjaya App",
-    url:      "https://coers.iitm.ac.in/fsa/dss_user_det",
+    url:      "https://rbg.iitm.ac.in/get_details/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
-      if (Array.isArray(json))              return json;
-      if (Array.isArray(json?.details))     return json.details;
-      if (Array.isArray(json?.data))        return json.data;
-      if (Array.isArray(json?.users))       return json.users;
-      if (Array.isArray(json?.results))     return json.results;
-      return [];
+      if (!json?.details) return [];
+      const result: AppUser[] = [];
+      
+      // Collect records from all three arrays, tagging each with its source role
+      if (Array.isArray(json.details.users)) {
+        result.push(...json.details.users.map((u: any) => ({ ...u, _role: "User" })));
+      }
+      if (Array.isArray(json.details.admins)) {
+        result.push(...json.details.admins.map((u: any) => ({ ...u, _role: "Admin" })));
+      }
+      if (Array.isArray(json.details.surveys)) {
+        result.push(...json.details.surveys.map((u: any) => ({ ...u, _role: "Survey" })));
+      }
+      
+      return result;
     },
-    loginKey: ["last_login", "last_seen", "lastLogin", "last_active"],
+    loginKey: ["last_login"],
     columns: [
-      { key: "user_name",  label: "User Name"  },
-      { key: "user_role",  label: "User Role"  },
-      { key: "district",   label: "District"   },
-      { key: "last_login", label: "Last Login" },
+      { key: "user_id",      label: "User ID"      },
+      { key: "state",        label: "State"        },
+      { key: "district",     label: "District"     },
+      { key: "stakeholder",  label: "Stakeholder"  },
+      { key: "role",         label: "Role"         },
+      { key: "last_login",   label: "Last Login"   },
     ],
     normalise: (d: AppUser): AppUser => ({
-      user_name:  d.rep_name      || d.user_name || d.name      || d.username || "",
-      user_role:  d.user_role     || d.role      || "",
-      district:   d.district_name || d.district  || "",
-      last_login: d.last_login    || d.last_seen || d.lastLogin || "",
+      user_id:     d.userid        || d.user_id         || "",
+      state:       d.state_name    || d.state           || "",
+      district:    d.district_name || d.district        || "",
+      stakeholder: d.stakeholder   || d.designation     || "",
+      role:        d._role         || d.role            || "",
+      last_login:  d.last_login    || d.last_seen       || "",
     }),
   },
 

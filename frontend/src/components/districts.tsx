@@ -176,26 +176,27 @@ export default function Districts() {
 
   // ── Fetch directly from external API ─────────────────────────────────
   useEffect(() => {
+    // Capture the config for this specific app at the time the effect fires
+    const cfg = APP_OPTIONS.find(a => a.value === selectedApp) ?? APP_OPTIONS[0];
+
+    // Clear stale data immediately so we never show a previous app's rows
+    setAllUsers([]);
+    setError(null);
 
     const fetchUsers = async () => {
       setLoading(true);
-      setError(null);
       try {
-        const res = await fetch(appConfig.url, {
+        const res = await fetch(cfg.url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // uses the per-app payload fn — different apps can have different body keys
-          body: JSON.stringify(appConfig.payload(derivedStart, derivedEnd)),
+          body: JSON.stringify(cfg.payload(derivedStart, derivedEnd)),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
         // Use the per-app extract fn to pull the correct array from the response
-        const raw: AppUser[] = appConfig.extract(json);
-        console.log("[Districts] app:", selectedApp, "| raw count:", raw.length, "| first raw:", raw[0]);
-        const normalised = raw.map(appConfig.normalise);
-        console.log("[Districts] first normalised:", normalised[0]);
-        setAllUsers(normalised);
+        const raw: AppUser[] = cfg.extract(json);
+        setAllUsers(raw.map(cfg.normalise));
       } catch (e: any) {
         setError(e.message);
         setAllUsers([]);

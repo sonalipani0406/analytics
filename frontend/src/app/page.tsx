@@ -39,7 +39,7 @@ interface AnalyticsData {
 export default function DashboardPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [filters, setFilters] = useState<FiltersState>({});
-  const [activeTab, setActiveTab] = useState("analytics");
+  const [activeTab, setActiveTab] = useState("districts");
   const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'all' | 'custom'>('day');
   const [selectedSite, setSelectedSite] = useState<string>('all');
   const [sites, setSites] = useState<Array<{ id: string; name: string }>>([]);
@@ -189,12 +189,12 @@ export default function DashboardPage() {
   */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="hidden md:block">
-            <TabsList className="grid w-full grid-cols-7 text-xs">
+            <TabsList className="grid w-full grid-cols-4 text-xs">
               {/* <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="global">Global</TabsTrigger> */}
+              <TabsTrigger value="districts">User Table</TabsTrigger>
               <TabsTrigger value="city">City</TabsTrigger>
-              <TabsTrigger value="districts">Districts</TabsTrigger>
               <TabsTrigger value="pages">Top Pages</TabsTrigger>
               <TabsTrigger value="visitors">Visitors</TabsTrigger>
             </TabsList>
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-full">
-                <DropdownMenuItem onSelect={() => setActiveTab("districts")}>Districts</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setActiveTab("districts")}>User Table</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("city")}>City Distribution</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("pages")}>Top Pages</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setActiveTab("visitors")}>Recent Visitor Activity</DropdownMenuItem>

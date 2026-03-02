@@ -118,10 +118,10 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Header />
-      {/*
+      
       <main className="max-w-7xl mx-auto p-2 md:p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
+         {/* <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
             <div className="w-full md:w-56">
               <label className="text-xs font-bold uppercase tracking-wide text-primary mb-2 block">
@@ -177,11 +177,11 @@ export default function DashboardPage() {
                 Custom
               </button>
             </div>
-          </div>
+          </div> */}
         </div>
 
         <StatsGrid stats={data?.stats || { total_visitors: 0, unique_visitors: 0, repeated_visitors: 0, avg_time_on_page: 0 }} />
-        <Filters
+        {/* <Filters
           onFiltersChange={handleFiltersChange}
           meta={data?.meta || { distinct_countries: [], distinct_devices: [], distinct_browsers: [] }}
           isCustomPeriod={selectedPeriod === 'custom'}

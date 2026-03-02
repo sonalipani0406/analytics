@@ -334,7 +334,7 @@ export default function Districts() {
         {/* Title row */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="flex items-center gap-2">
-            App Users
+            Total Users ({appConfig.label})
             {!loading && (
               <span className="text-sm font-normal text-muted-foreground">
                 ({filteredSorted.length} user{filteredSorted.length !== 1 ? "s" : ""})

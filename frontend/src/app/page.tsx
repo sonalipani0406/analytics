@@ -180,7 +180,7 @@ export default function DashboardPage() {
           </div> */}
         </div>
 
-        <StatsGrid stats={data?.stats || { total_visitors: 0, unique_visitors: 0, repeated_visitors: 0, avg_time_on_page: 0 }} />
+        {/* <StatsGrid stats={data?.stats || { total_visitors: 0, unique_visitors: 0, repeated_visitors: 0, avg_time_on_page: 0 }} /> */}
         {/* <Filters
           onFiltersChange={handleFiltersChange}
           meta={data?.meta || { distinct_countries: [], distinct_devices: [], distinct_browsers: [] }}
@@ -190,9 +190,9 @@ export default function DashboardPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="hidden md:block">
             <TabsList className="grid w-full grid-cols-7 text-xs">
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              {/* <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="global">Global</TabsTrigger>
+              <TabsTrigger value="global">Global</TabsTrigger> */}
               <TabsTrigger value="city">City</TabsTrigger>
               <TabsTrigger value="districts">Districts</TabsTrigger>
               <TabsTrigger value="pages">Top Pages</TabsTrigger>

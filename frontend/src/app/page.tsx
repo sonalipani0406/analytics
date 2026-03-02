@@ -220,11 +220,7 @@ export default function DashboardPage() {
             </DropdownMenu>
           </div>
           <TabsContent value="districts">
-            <Districts
-              selectedSite={selectedSite}
-              selectedPeriod={selectedPeriod}
-              filters={filters}
-            />
+            <Districts />
           </TabsContent>
           
          {/* <TabsContent value="analytics">

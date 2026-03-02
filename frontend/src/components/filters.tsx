@@ -85,8 +85,8 @@ export function Filters({ onFiltersChange, meta, isCustomPeriod = false }: Filte
     { value: "12", label: "December" },
   ];
 
-  return (
-   {/* <Card className="mb-4 md:mb-12">
+  /* return (
+    <Card className="mb-4 md:mb-12">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Filter className="h-5 w-5" /> Advanced Filters</CardTitle>
       </CardHeader>
@@ -164,5 +164,6 @@ export function Filters({ onFiltersChange, meta, isCustomPeriod = false }: Filte
         </div>
       </CardContent>
     </Card>
-  ); */}
+  ); */
+  return null;
 }

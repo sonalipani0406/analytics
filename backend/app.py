@@ -552,6 +552,7 @@ def log_time():
 # Registry of app slugs → upstream POST endpoint
 APP_USER_ENDPOINTS = {
     'fps': 'https://coers.iitm.ac.in/fsa/user_det',
+    'sanjaya': 'https://coers.iitm.ac.in/fsa/dss_user_det',
     # add more app entries here: 'myapp': 'https://...',
 }
 

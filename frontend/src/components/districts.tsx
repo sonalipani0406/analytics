@@ -16,9 +16,8 @@ type LocalPeriod = "24h" | "7d" | "30d" | "all" | "custom";
 
 // ── App registry — add one line per new app ────────────────────────────────
 const APP_OPTIONS = [
-  { value: "fps",     label: "FPS App"     },
-  { value: "sanjaya", label: "Sanjaya App" },
-  // { value: "newapp", label: "New App" },
+  { value: "fps",     label: "FPS App",     url: "https://coers.iitm.ac.in/fsa/user_det"     },
+  { value: "sanjaya", label: "Sanjaya App", url: "https://coers.iitm.ac.in/fsa/dss_user_det" },
 ];
 
 // ── Period tab definitions ─────────────────────────────────────────────────
@@ -87,22 +86,40 @@ export default function Districts() {
     return periodToDates(localPeriod);
   }, [localPeriod, customStart, customEnd]);
 
-  // ── Fetch via backend proxy ───────────────────────────────────────────
+  // ── Fetch directly from external API ─────────────────────────────────
   useEffect(() => {
+    const appConfig = APP_OPTIONS.find(a => a.value === selectedApp);
+    if (!appConfig) return;
+
     const fetchUsers = async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ app: selectedApp });
-        if (derivedStart) params.set("start_date", derivedStart);
-        if (derivedEnd)   params.set("end_date",   derivedEnd);
-
-        const res = await fetch(`/api/app-users?${params.toString()}`);
+        const res = await fetch(appConfig.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ start_date: derivedStart, end_date: derivedEnd }),
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
 
-        if (json.error && !(json.users?.length)) throw new Error(json.error);
-        const list: AppUser[] = json.users ?? (Array.isArray(json) ? json : []);
+        // Normalise: handle {details:[...]}, {users:[...]}, or a bare array
+        let list: AppUser[] = [];
+        if (Array.isArray(json)) {
+          list = json;
+        } else if (Array.isArray(json.details)) {
+          list = json.details.map((d: AppUser) => ({
+            user_name:      d.rep_name || d.name || d.username || "",
+            user_role:      d.user_role || d.role || "",
+            district:       d.district_name || d.district || "",
+            police_station: d.police_station || d.ps || "",
+            last_login:     d.last_login || "",
+          }));
+        } else {
+          for (const key of ["users", "data", "results"]) {
+            if (Array.isArray(json[key])) { list = json[key]; break; }
+          }
+        }
         setAllUsers(list);
       } catch (e: any) {
         setError(e.message);

@@ -41,15 +41,15 @@ const APP_OPTIONS: {
   loginKey: string[];
   columns: ColDef[];
   normalise: (raw: AppUser) => AppUser;
+  extraFilters?: { key: string; label: string }[];
 }[] = [
   // ── FPS App ────────────────────────────────────────────────────────────────
-  // Response shape: { details: [ { rep_name, user_role, district_name, police_station, last_login }, ... ] }
+  // Fields: rep_name, user_role, type, state_name, district_name, police_station, last_login
   {
     value:    "fps",
     label:    "FPS App",
     url:      "https://coers.iitm.ac.in/fsa/user_det",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
-    // Try every common wrapping key — handles both bare array and dict responses
     extract:  (json: any): AppUser[] => {
       if (Array.isArray(json))              return json;
       if (Array.isArray(json?.details))     return json.details;
@@ -62,6 +62,8 @@ const APP_OPTIONS: {
     columns: [
       { key: "user_name",      label: "User Name"      },
       { key: "user_role",      label: "User Role"      },
+      { key: "designation",    label: "Designation"    },
+      { key: "state",          label: "State"          },
       { key: "district",       label: "District"       },
       { key: "police_station", label: "Police Station" },
       { key: "last_login",     label: "Last Login"     },
@@ -69,15 +71,20 @@ const APP_OPTIONS: {
     normalise: (d: AppUser): AppUser => ({
       user_name:      d.rep_name       || d.user_name    || d.name          || d.username || "",
       user_role:      d.user_role      || d.role         || "",
+      designation:    d.type           || d.designation  || "",
+      state:          d.state_name     || d.state        || "",
       district:       d.district_name  || d.district     || "",
       police_station: d.police_station || d.ps           || d.policeStation || "",
       last_login:     (d.last_login || d.last_seen || d.lastLogin || "").split(" ")[0],
     }),
+    extraFilters: [
+      { key: "designation", label: "Designation" },
+      { key: "user_role",   label: "User Role"   },
+    ],
   },
 
   // ── Sanjaya App ────────────────────────────────────────────────────────────
-  // Response shape: { details: { admins: [], surveys: [], users: [ { userid, state_name, district_name, stakeholder, last_login }, ... ] } }
-  // Extracts from all three arrays (users, admins, surveys) and tags each with source role
+  // Fields: userid, name, account_status, designation, stakeholder, state_name, district_name, last_login
   {
     value:    "sanjaya",
     label:    "Sanjaya App",
@@ -86,65 +93,71 @@ const APP_OPTIONS: {
     extract:  (json: any): AppUser[] => {
       if (!json?.details) return [];
       const result: AppUser[] = [];
-      
-      // Collect records from all three arrays, tagging each with its source role
-      if (Array.isArray(json.details.users)) {
-        result.push(...json.details.users.map((u: any) => ({ ...u, _role: "User" })));
-      }
-      if (Array.isArray(json.details.admins)) {
-        result.push(...json.details.admins.map((u: any) => ({ ...u, _role: "Admin" })));
-      }
-      if (Array.isArray(json.details.surveys)) {
-        result.push(...json.details.surveys.map((u: any) => ({ ...u, _role: "Survey" })));
-      }
-      
+      if (Array.isArray(json.details.users))   result.push(...json.details.users.map((u: any)   => ({ ...u, _role: "User"   })));
+      if (Array.isArray(json.details.admins))  result.push(...json.details.admins.map((u: any)  => ({ ...u, _role: "Admin"  })));
+      if (Array.isArray(json.details.surveys)) result.push(...json.details.surveys.map((u: any) => ({ ...u, _role: "Survey" })));
       return result;
     },
     loginKey: ["last_login"],
     columns: [
-      { key: "user_id",      label: "User ID"      },
-      { key: "state",        label: "State"        },
-      { key: "district",     label: "District"     },
-      { key: "stakeholder",  label: "Stakeholder"  },
-      { key: "role",         label: "Role"         },
-      { key: "last_login",   label: "Last Login"   },
+      { key: "user_id",        label: "User ID"        },
+      { key: "name",           label: "Name"           },
+      { key: "state",          label: "State"          },
+      { key: "district",       label: "District"       },
+      { key: "designation",    label: "Designation"    },
+      { key: "stakeholder",    label: "Stakeholder"    },
+      { key: "account_status", label: "Account Status" },
+      { key: "role",           label: "Role"           },
+      { key: "last_login",     label: "Last Login"     },
     ],
     normalise: (d: AppUser): AppUser => ({
-      user_id:     d.userid        || d.user_id         || "",
-      state:       d.state_name    || d.state           || "",
-      district:    d.district_name || d.district        || "",
-      stakeholder: d.stakeholder   || d.designation     || "",
-      role:        d._role         || d.role            || "",
-      last_login:  (d.last_login || d.last_seen || "").split(" ")[0],
+      user_id:        d.userid         || d.user_id      || "",
+      name:           d.name           || "",
+      state:          d.state_name     || d.state        || "",
+      district:       d.district_name  || d.district     || "",
+      designation:    d.designation    || "",
+      stakeholder:    d.stakeholder    || "",
+      account_status: d.account_status || "",
+      role:           d._role          || d.role         || "",
+      last_login:     (d.last_login    || d.last_seen    || "").split(" ")[0],
     }),
+    extraFilters: [
+      { key: "designation",    label: "Designation"    },
+      { key: "account_status", label: "Account Status" },
+    ],
   },
 
   // ── TPL App ────────────────────────────────────────────────────────────────
-  // Response shape (confirmed via curl):
-  //   { details: { admins: [...], surveys: [...], users: [ {user_id, hospname, state_name, district_name, ...} ] } }
+  // Fields: user_id, userid, hospname, category, state_name, district_name, last_login, user_status
   {
     value:    "tpl",
     label:    "TPL App",
     url:      "https://coers.iitm.ac.in/baseline/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
-      // details is an object; the users list sits at details.users
       if (Array.isArray(json?.details?.users)) return json.details.users;
       return [];
     },
-    loginKey: [], // TPL has no last_login field — skip period filter entirely
+    loginKey: ["last_login"], // confirmed present in API response
     columns: [
       { key: "user_id",       label: "User ID"       },
       { key: "state",         label: "State"         },
       { key: "district",      label: "District"      },
       { key: "hospital_name", label: "Hospital Name" },
+      { key: "category",      label: "Hospital Type" },
+      { key: "last_login",    label: "Last Login"    },
     ],
     normalise: (d: AppUser): AppUser => ({
       user_id:       d.user_id       || String(d.userid ?? "") || "",
       state:         d.state_name    || d.state                || "",
       district:      d.district_name || d.district             || "",
       hospital_name: d.hospname      || d.hospital_name        || d.hospital || "",
+      category:      (d.category     || "").trim().toUpperCase(),
+      last_login:    (d.last_login   || "").split(" ")[0],
     }),
+    extraFilters: [
+      { key: "category", label: "Hospital Type" },
+    ],
   },
 
   // ── Add more apps here ─────────────────────────────────────────────────────
@@ -190,9 +203,10 @@ export default function Districts() {
   const [customStart,  setCustomStart]  = useState("");
   const [customEnd,    setCustomEnd]    = useState("");
 
-  // Search filters
-  const [nameSearch,     setNameSearch]     = useState("");
-  const [districtSearch, setDistrictSearch] = useState("");
+  // Dropdown filters
+  const [selectedState,    setSelectedState]    = useState("all");
+  const [selectedDistrict, setSelectedDistrict] = useState("all");
+  const [dropdownFilters,  setDropdownFilters]  = useState<Record<string, string>>({});
 
   // Sorting
   const [sortCol, setSortCol] = useState<string>("user_name");
@@ -206,6 +220,42 @@ export default function Districts() {
     () => APP_OPTIONS.find(a => a.value === selectedApp) ?? APP_OPTIONS[0],
     [selectedApp]
   );
+
+  // ── Reset all dropdown filters when the app changes ──────────────────
+  useEffect(() => {
+    setSelectedState("all");
+    setSelectedDistrict("all");
+    setDropdownFilters({});
+  }, [selectedApp]);
+
+  // ── Unique state options derived from loaded data ─────────────────────
+  const stateOptions = useMemo(() => {
+    const set = new Set<string>();
+    allUsers.forEach(u => { const s = getField(u, "state"); if (s && s !== "—") set.add(s); });
+    return Array.from(set).sort();
+  }, [allUsers]);
+
+  // ── District options filtered by selected state ───────────────────────
+  const districtOptions = useMemo(() => {
+    const set = new Set<string>();
+    allUsers.forEach(u => {
+      if (selectedState !== "all" && getField(u, "state") !== selectedState) return;
+      const d = getField(u, "district");
+      if (d && d !== "—") set.add(d);
+    });
+    return Array.from(set).sort();
+  }, [allUsers, selectedState]);
+
+  // ── Extra filter options per app config ───────────────────────────────
+  const extraFilterOptions = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    (appConfig.extraFilters ?? []).forEach(({ key }) => {
+      const set = new Set<string>();
+      allUsers.forEach(u => { const v = getField(u, key); if (v && v !== "—") set.add(v); });
+      result[key] = Array.from(set).sort();
+    });
+    return result;
+  }, [allUsers, appConfig]);
 
   // ── Derived date range ────────────────────────────────────────────────
   const { start: derivedStart, end: derivedEnd } = useMemo(() => {
@@ -283,21 +333,23 @@ export default function Districts() {
     const cutoffEnd   = derivedEnd   ? new Date(derivedEnd + "T23:59:59") : null;
 
     let rows = allUsers.filter((u: AppUser) => {
-      // ── name filter ──
-      const name = getField(u, "user_name", "name", "username").toLowerCase();
-      if (nameSearch && !name.includes(nameSearch.toLowerCase())) return false;
+      // ── state dropdown filter ──
+      if (selectedState !== "all" && getField(u, "state") !== selectedState) return false;
 
-      // ── district filter ──
-      const dist = getField(u, "district").toLowerCase();
-      if (districtSearch && !dist.includes(districtSearch.toLowerCase())) return false;
+      // ── district dropdown filter ──
+      if (selectedDistrict !== "all" && getField(u, "district") !== selectedDistrict) return false;
+
+      // ── app-specific extra dropdown filters ──
+      for (const [key, val] of Object.entries(dropdownFilters)) {
+        if (val !== "all" && getField(u, key) !== val) return false;
+      }
 
       // ── period filter (client-side, using per-app loginKey list) ──
-      // Skip entirely if this app has no login date field (loginKey is empty)
       if (appConfig.loginKey.length > 0 && (cutoffStart || cutoffEnd)) {
         const loginStr = getField(u, ...appConfig.loginKey);
-        if (loginStr === "—") return false; // no login date → exclude from period view
+        if (loginStr === "—") return false;
         const loginDate = new Date(loginStr);
-        if (isNaN(loginDate.getTime())) return true; // unparseable → keep the row
+        if (isNaN(loginDate.getTime())) return true;
         if (cutoffStart && loginDate < cutoffStart) return false;
         if (cutoffEnd   && loginDate > cutoffEnd)   return false;
       }
@@ -313,7 +365,7 @@ export default function Districts() {
     });
 
     return rows;
-  }, [allUsers, appConfig, nameSearch, districtSearch, sortCol, sortDir, derivedStart, derivedEnd]);
+  }, [allUsers, appConfig, selectedState, selectedDistrict, dropdownFilters, sortCol, sortDir, derivedStart, derivedEnd]);
 
   const displayedUsers = useMemo(
     () => (perPage === 0 ? filteredSorted : filteredSorted.slice(0, perPage)),
@@ -399,24 +451,50 @@ export default function Districts() {
       </CardHeader>
 
       <CardContent>
-        {/* Search filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          <div>
-            <Label className="text-xs mb-1 block">Search by Name</Label>
-            <Input
-              placeholder="User name…"
-              value={nameSearch}
-              onChange={e => setNameSearch(e.target.value)}
-            />
+        {/* Dropdown filters */}
+        <div className="flex flex-wrap gap-3 mb-4">
+          {/* State */}
+          <div className="min-w-[160px]">
+            <Label className="text-xs mb-1 block">State</Label>
+            <Select value={selectedState} onValueChange={v => { setSelectedState(v); setSelectedDistrict("all"); }}>
+              <SelectTrigger><SelectValue placeholder="All States" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All States</SelectItem>
+                {stateOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <div>
-            <Label className="text-xs mb-1 block">Filter by District</Label>
-            <Input
-              placeholder="District…"
-              value={districtSearch}
-              onChange={e => setDistrictSearch(e.target.value)}
-            />
+
+          {/* District */}
+          <div className="min-w-[160px]">
+            <Label className="text-xs mb-1 block">District</Label>
+            <Select value={selectedDistrict} onValueChange={setSelectedDistrict}>
+              <SelectTrigger><SelectValue placeholder="All Districts" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Districts</SelectItem>
+                {districtOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
+
+          {/* App-specific extra filters */}
+          {(appConfig.extraFilters ?? []).map(({ key, label }) => (
+            <div key={key} className="min-w-[160px]">
+              <Label className="text-xs mb-1 block">{label}</Label>
+              <Select
+                value={dropdownFilters[key] ?? "all"}
+                onValueChange={v => setDropdownFilters(prev => ({ ...prev, [key]: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder={`All ${label}`} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All {label}</SelectItem>
+                  {(extraFilterOptions[key] ?? []).map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
         </div>
 
         {/* Per-page selector + count */}

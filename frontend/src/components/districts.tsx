@@ -531,15 +531,15 @@ export default function Districts() {
 
         {/* Table — columns come from appConfig.columns, fully dynamic */}
         {!loading && !error && (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
+          <div className="w-[93%] mx-auto overflow-x-auto rounded-md border">
+            <table className="w-full text-sm text-center">
               <thead>
-                <tr className="bg-muted/50 text-left">
-                  <th className="px-4 py-2 font-semibold">#</th>
+                <tr className="bg-muted/50">
+                  <th className="px-4 py-2 font-semibold text-center">#</th>
                   {appConfig.columns.map(c => (
                     <th
                       key={c.key}
-                      className="px-4 py-2 font-semibold cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                      className="px-4 py-2 font-semibold text-center cursor-pointer select-none hover:bg-muted/80 transition-colors"
                       onClick={() => handleSort(c.key)}
                     >
                       {c.label}
@@ -560,11 +560,11 @@ export default function Districts() {
                 ) : (
                   displayedUsers.map((u, i) => (
                     <tr key={i} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
+                      <td className="px-4 py-2 text-center text-muted-foreground">{i + 1}</td>
                       {appConfig.columns.map((c, ci) => (
                         <td
                           key={c.key}
-                          className={`px-4 py-2${ci === 0 ? " font-medium" : ""}`}
+                          className={`px-4 py-2 text-center${ci === 0 ? " font-medium" : ""}`}
                         >
                           {getField(u, c.key)}
                         </td>

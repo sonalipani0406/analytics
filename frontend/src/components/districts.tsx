@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import React from "react";
+import { Download } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AppUser   = { [k: string]: any };
@@ -48,7 +48,7 @@ const APP_OPTIONS: {
   {
     value:    "fps",
     label:    "FPS App",
-    url:      "https://rbg.iitm.ac.in/fps_api/export_all_data",
+    url:      "https://coers.iitm.ac.in/fsa/user_det",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
       if (Array.isArray(json))              return json;
@@ -180,6 +180,23 @@ function getField(user: AppUser, ...keys: string[]): string {
   return "—";
 }
 
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function sanitizeFilePart(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
 /** Convert a local period value into explicit start/end date strings (YYYY-MM-DD). */
 function periodToDates(period: LocalPeriod): { start: string; end: string } {
   if (period === "all" || period === "custom") return { start: "", end: "" };
@@ -213,7 +230,7 @@ export default function Districts() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // Pagination  (0 = show all)
-  const [perPage, setPerPage] = useState<number>(0);
+  const [perPage, setPerPage] = useState<number>(10);
 
   // ── Active app config (memoised so filteredSorted dep array is stable) ──
   const appConfig = useMemo(
@@ -372,6 +389,92 @@ export default function Districts() {
     [filteredSorted, perPage]
   );
 
+  const activeFilters = useMemo(() => {
+    const filters: Array<{ label: string; value: string }> = [
+      { label: "App", value: appConfig.label },
+      { label: "Period", value: localPeriod === "custom" ? "Custom" : PERIOD_TABS.find(t => t.value === localPeriod)?.label ?? "All" },
+    ];
+
+    if (derivedStart) filters.push({ label: "From", value: derivedStart });
+    if (derivedEnd) filters.push({ label: "To", value: derivedEnd });
+    if (selectedState !== "all") filters.push({ label: "State", value: selectedState });
+    if (selectedDistrict !== "all") filters.push({ label: "District", value: selectedDistrict });
+
+    (appConfig.extraFilters ?? []).forEach(({ key, label }) => {
+      const value = dropdownFilters[key];
+      if (value && value !== "all") filters.push({ label, value });
+    });
+
+    filters.push({ label: "Sort", value: `${appConfig.columns.find(c => c.key === sortCol)?.label ?? sortCol} (${sortDir.toUpperCase()})` });
+    filters.push({ label: "Rows", value: String(filteredSorted.length) });
+
+    return filters;
+  }, [appConfig, localPeriod, derivedStart, derivedEnd, selectedState, selectedDistrict, dropdownFilters, sortCol, sortDir, filteredSorted.length]);
+
+  const exportFilename = useMemo(() => {
+    const parts = [sanitizeFilePart(appConfig.label) || selectedApp];
+    parts.push(`period-${sanitizeFilePart(localPeriod) || "all"}`);
+
+    if (selectedState !== "all") parts.push(`state-${sanitizeFilePart(selectedState)}`);
+    if (selectedDistrict !== "all") parts.push(`district-${sanitizeFilePart(selectedDistrict)}`);
+
+    (appConfig.extraFilters ?? []).forEach(({ key, label }) => {
+      const value = dropdownFilters[key];
+      if (value && value !== "all") {
+        parts.push(`${sanitizeFilePart(label)}-${sanitizeFilePart(value)}`);
+      }
+    });
+
+    if (derivedStart) parts.push(`from-${derivedStart}`);
+    if (derivedEnd) parts.push(`to-${derivedEnd}`);
+
+    return `${parts.filter(Boolean).join("_") || "users"}.xls`;
+  }, [appConfig, selectedApp, localPeriod, selectedState, selectedDistrict, dropdownFilters, derivedStart, derivedEnd]);
+
+  const handleDownloadExcel = () => {
+    const columnLabels = appConfig.columns.map(c => c.label);
+    const rows = filteredSorted.map((user, index) => [
+      String(index + 1),
+      ...appConfig.columns.map(c => getField(user, c.key)),
+    ]);
+
+    const worksheetRows = [
+      ["Filtered User Export"],
+      [],
+      ...activeFilters.map(filter => [filter.label, filter.value]),
+      [],
+      ["#", ...columnLabels],
+      ...rows,
+    ];
+
+    const worksheetXml = worksheetRows
+      .map(row => {
+        const cells = row.map(cell => `<Cell><Data ss:Type="String">${escapeXml(String(cell ?? ""))}</Data></Cell>`).join("");
+        return `<Row>${cells}</Row>`;
+      })
+      .join("");
+
+    const xml = `<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="${escapeXml(appConfig.label.slice(0, 31))}">
+  <Table>${worksheetXml}</Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   // ── Sort icon helper ──────────────────────────────────────────────────
   const SortIcon = ({ col }: { col: string }) => (
     <span className="ml-1 text-xs opacity-40 select-none">
@@ -498,7 +601,7 @@ export default function Districts() {
         </div>
 
         {/* Per-page selector + count */}
-        <div className="flex items-center gap-1.5 mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           <span className="text-xs text-muted-foreground mr-1">Show:</span>
           {[10, 50, 100, 0].map(n => (
             <button
@@ -514,11 +617,23 @@ export default function Districts() {
               {n === 0 ? "All" : n}
             </button>
           ))}
-          <span className="ml-auto text-xs text-muted-foreground">
-            {loading
-              ? "Loading…"
-              : `Showing ${displayedUsers.length} of ${filteredSorted.length}`}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {loading
+                ? "Loading…"
+                : `Showing ${displayedUsers.length} of ${filteredSorted.length}`}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadExcel}
+              disabled={loading || !!error || filteredSorted.length === 0}
+            >
+              <Download className="size-4" />
+              Download Excel
+            </Button>
+          </div>
         </div>
 
         {/* Status */}

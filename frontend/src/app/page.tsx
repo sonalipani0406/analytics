@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { StatsGrid } from "@/components/stats-cards";
 import { Filters } from "@/components/filters";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatsGridProps } from "@/components/stats-cards";
 import { FiltersProps } from "@/components/filters";
+import { AuthSession, getStoredSession } from "@/lib/auth";
 
 interface FiltersState {
   [key: string]: string;
@@ -37,15 +39,35 @@ interface AnalyticsData {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [filters, setFilters] = useState<FiltersState>({});
   const [activeTab, setActiveTab] = useState("districts");
   const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'all' | 'custom'>('day');
   const [selectedSite, setSelectedSite] = useState<string>('all');
   const [sites, setSites] = useState<Array<{ id: string; name: string }>>([]);
 
+  useEffect(() => {
+    const currentSession = getStoredSession();
+
+    if (!currentSession) {
+      router.replace("/login");
+      setAuthReady(true);
+      return;
+    }
+
+    setSession(currentSession);
+    setAuthReady(true);
+  }, [router]);
+
   // Load available sites on mount
   useEffect(() => {
+    if (!authReady || !session) {
+      return;
+    }
+
     const loadSites = async () => {
       try {
         const response = await fetch('/api/sites');
@@ -59,7 +81,7 @@ export default function DashboardPage() {
       }
     };
     loadSites();
-  }, []);
+  }, [authReady, session]);
 
   const loadData = async (currentFilters: FiltersState) => {
     const cleanedFilters: { [key: string]: string } = {};
@@ -95,10 +117,14 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    if (!authReady || !session) {
+      return;
+    }
+
     loadData(filters);
     const interval = setInterval(() => loadData(filters), 30000);
     return () => clearInterval(interval);
-  }, [filters, selectedPeriod, selectedSite]);
+  }, [authReady, session, filters, selectedPeriod, selectedSite]);
 
   const handleFiltersChange = (newFilters: FiltersState) => {
     setFilters(newFilters);
@@ -115,9 +141,21 @@ export default function DashboardPage() {
     return data?.charts?.by_date || [];
   };
 
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Checking access...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Header />
+      <Header session={session} />
       
       <main className="max-w-7xl mx-auto p-2 md:p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -220,7 +258,7 @@ export default function DashboardPage() {
             </DropdownMenu>
           </div>
           <TabsContent value="districts">
-            <Districts />
+            <Districts canExport={session.role === "super_admin"} />
           </TabsContent>
           
          {/* <TabsContent value="analytics">

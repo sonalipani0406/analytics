@@ -209,8 +209,12 @@ function periodToDates(period: LocalPeriod): { start: string; end: string } {
   return { start, end };
 }
 
+interface DistrictsProps {
+  canExport?: boolean;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
-export default function Districts() {
+export default function Districts({ canExport = false }: DistrictsProps) {
   // ── State ─────────────────────────────────────────────────────────────
   const [selectedApp,    setSelectedApp]    = useState("fps");
   const [allUsers,       setAllUsers]       = useState<AppUser[]>([]);
@@ -626,16 +630,20 @@ export default function Districts() {
                 ? "Loading…"
                 : `Showing ${displayedUsers.length} of ${filteredSorted.length}`}
             </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadExcel}
-              disabled={loading || !!error || filteredSorted.length === 0}
-            >
-              <Download className="size-4" />
-              Export Excel
-            </Button>
+            {canExport ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadExcel}
+                disabled={loading || !!error || filteredSorted.length === 0}
+              >
+                <Download className="size-4" />
+                Export Excel
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">View-only access</span>
+            )}
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import React from "react";
 import { Download } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -207,8 +208,12 @@ function periodToDates(period: LocalPeriod): { start: string; end: string } {
   return { start, end };
 }
 
+interface DistrictsProps {
+  canExport?: boolean;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
-export default function Districts() {
+export default function Districts({ canExport = false }: DistrictsProps) {
   // ── State ─────────────────────────────────────────────────────────────
   const [selectedApp,    setSelectedApp]    = useState("fps");
   const [allUsers,       setAllUsers]       = useState<AppUser[]>([]);
@@ -230,7 +235,7 @@ export default function Districts() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // Pagination  (0 = show all)
-  const [perPage, setPerPage] = useState<number>(10);
+  const [perPage, setPerPage] = useState<number>(0);
 
   // ── Active app config (memoised so filteredSorted dep array is stable) ──
   const appConfig = useMemo(
@@ -389,28 +394,6 @@ export default function Districts() {
     [filteredSorted, perPage]
   );
 
-  const activeFilters = useMemo(() => {
-    const filters: Array<{ label: string; value: string }> = [
-      { label: "App", value: appConfig.label },
-      { label: "Period", value: localPeriod === "custom" ? "Custom" : PERIOD_TABS.find(t => t.value === localPeriod)?.label ?? "All" },
-    ];
-
-    if (derivedStart) filters.push({ label: "From", value: derivedStart });
-    if (derivedEnd) filters.push({ label: "To", value: derivedEnd });
-    if (selectedState !== "all") filters.push({ label: "State", value: selectedState });
-    if (selectedDistrict !== "all") filters.push({ label: "District", value: selectedDistrict });
-
-    (appConfig.extraFilters ?? []).forEach(({ key, label }) => {
-      const value = dropdownFilters[key];
-      if (value && value !== "all") filters.push({ label, value });
-    });
-
-    filters.push({ label: "Sort", value: `${appConfig.columns.find(c => c.key === sortCol)?.label ?? sortCol} (${sortDir.toUpperCase()})` });
-    filters.push({ label: "Rows", value: String(filteredSorted.length) });
-
-    return filters;
-  }, [appConfig, localPeriod, derivedStart, derivedEnd, selectedState, selectedDistrict, dropdownFilters, sortCol, sortDir, filteredSorted.length]);
-
   const exportFilename = useMemo(() => {
     const parts = [sanitizeFilePart(appConfig.label) || selectedApp];
     parts.push(`period-${sanitizeFilePart(localPeriod) || "all"}`);
@@ -418,38 +401,30 @@ export default function Districts() {
     if (selectedState !== "all") parts.push(`state-${sanitizeFilePart(selectedState)}`);
     if (selectedDistrict !== "all") parts.push(`district-${sanitizeFilePart(selectedDistrict)}`);
 
-    (appConfig.extraFilters ?? []).forEach(({ key, label }) => {
-      const value = dropdownFilters[key];
-      if (value && value !== "all") {
-        parts.push(`${sanitizeFilePart(label)}-${sanitizeFilePart(value)}`);
-      }
-    });
-
-    if (derivedStart) parts.push(`from-${derivedStart}`);
-    if (derivedEnd) parts.push(`to-${derivedEnd}`);
-
     return `${parts.filter(Boolean).join("_") || "users"}.xls`;
-  }, [appConfig, selectedApp, localPeriod, selectedState, selectedDistrict, dropdownFilters, derivedStart, derivedEnd]);
+  }, [appConfig, selectedApp, localPeriod, selectedState, selectedDistrict]);
 
   const handleDownloadExcel = () => {
-    const columnLabels = appConfig.columns.map(c => c.label);
     const rows = filteredSorted.map((user, index) => [
       String(index + 1),
-      ...appConfig.columns.map(c => getField(user, c.key)),
+      ...appConfig.columns.map((column) => getField(user, column.key)),
     ]);
 
     const worksheetRows = [
       ["Filtered User Export"],
+      ["App", appConfig.label],
+      ["Period", localPeriod],
+      ["Rows", String(filteredSorted.length)],
       [],
-      ...activeFilters.map(filter => [filter.label, filter.value]),
-      [],
-      ["#", ...columnLabels],
+      ["#", ...appConfig.columns.map((column) => column.label)],
       ...rows,
     ];
 
     const worksheetXml = worksheetRows
-      .map(row => {
-        const cells = row.map(cell => `<Cell><Data ss:Type="String">${escapeXml(String(cell ?? ""))}</Data></Cell>`).join("");
+      .map((row) => {
+        const cells = row
+          .map((cell) => `<Cell><Data ss:Type="String">${escapeXml(String(cell ?? ""))}</Data></Cell>`)
+          .join("");
         return `<Row>${cells}</Row>`;
       })
       .join("");
@@ -620,19 +595,23 @@ export default function Districts() {
           <div className="ml-auto flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
               {loading
-                ? "Loading…"
+                ? "Loading..."
                 : `Showing ${displayedUsers.length} of ${filteredSorted.length}`}
             </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadExcel}
-              disabled={loading || !!error || filteredSorted.length === 0}
-            >
-              <Download className="size-4" />
-              Download Excel
-            </Button>
+            {canExport ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadExcel}
+                disabled={loading || !!error || filteredSorted.length === 0}
+              >
+                <Download className="size-4" />
+                Export Excel
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">View-only access</span>
+            )}
           </div>
         </div>
 
@@ -646,15 +625,15 @@ export default function Districts() {
 
         {/* Table — columns come from appConfig.columns, fully dynamic */}
         {!loading && !error && (
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
+          <div className="w-[93%] mx-auto overflow-x-auto rounded-md border">
+            <table className="w-full text-sm text-center">
               <thead>
-                <tr className="bg-muted/50 text-left">
-                  <th className="px-4 py-2 font-semibold">#</th>
+                <tr className="bg-muted/50">
+                  <th className="px-4 py-2 font-semibold text-center">#</th>
                   {appConfig.columns.map(c => (
                     <th
                       key={c.key}
-                      className="px-4 py-2 font-semibold cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                      className="px-4 py-2 font-semibold text-center cursor-pointer select-none hover:bg-muted/80 transition-colors"
                       onClick={() => handleSort(c.key)}
                     >
                       {c.label}
@@ -675,11 +654,11 @@ export default function Districts() {
                 ) : (
                   displayedUsers.map((u, i) => (
                     <tr key={i} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
+                      <td className="px-4 py-2 text-center text-muted-foreground">{i + 1}</td>
                       {appConfig.columns.map((c, ci) => (
                         <td
                           key={c.key}
-                          className={`px-4 py-2${ci === 0 ? " font-medium" : ""}`}
+                          className={`px-4 py-2 text-center${ci === 0 ? " font-medium" : ""}`}
                         >
                           {getField(u, c.key)}
                         </td>

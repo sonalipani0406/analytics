@@ -39,6 +39,8 @@ _app_users_cache = {}
 APP_USERS_CONNECT_TIMEOUT_SEC = float(os.environ.get('APP_USERS_CONNECT_TIMEOUT_SEC', '20'))
 APP_USERS_READ_TIMEOUT_SEC = float(os.environ.get('APP_USERS_READ_TIMEOUT_SEC', '120'))
 APP_USERS_RETRIES = int(os.environ.get('APP_USERS_RETRIES', '1'))
+APP_USERS_CHUNK_DAYS = int(os.environ.get('APP_USERS_CHUNK_DAYS', '7'))
+APP_USERS_CHUNK_LOOKBACK_DAYS = int(os.environ.get('APP_USERS_CHUNK_LOOKBACK_DAYS', '90'))
 
 
 def _post_upstream_json_with_urllib(url, body_data):
@@ -590,7 +592,6 @@ def log_time():
 # ---------------------------------------------------------------------------
 
 # Registry of app slugs -> upstream POST endpoint(s).
-# If one host returns 5xx/timeout, we fail over to the next host.
 APP_USER_ENDPOINTS = {
     'fps': ['https://coers.iitm.ac.in/fsa/user_det'],
     'sanjaya': ['https://rbg.iitm.ac.in/get_details/export_all_data'],
@@ -657,6 +658,69 @@ def _compact_error_message(error):
     if len(text) > 240:
         text = text[:240] + '...'
     return text
+
+
+def _parse_ymd(value):
+    """Parse YYYY-MM-DD string into datetime (UTC, date at midnight)."""
+    if not value:
+        return None
+    return datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+
+
+def _iterate_windows(start_dt, end_dt, chunk_days):
+    """Yield inclusive [start, end] windows as YYYY-MM-DD pairs."""
+    cur = start_dt
+    while cur <= end_dt:
+        win_end = min(cur + timedelta(days=chunk_days - 1), end_dt)
+        yield cur.strftime('%Y-%m-%d'), win_end.strftime('%Y-%m-%d')
+        cur = win_end + timedelta(days=1)
+
+
+def _user_dedupe_key(user):
+    """Create a stable dedupe key across app payload shapes."""
+    user_id = str(user.get('userid') or user.get('user_id') or '').strip().lower()
+    if user_id:
+        return f"id:{user_id}"
+    name = str(user.get('user_name') or user.get('name') or '').strip().lower()
+    role = str(user.get('user_role') or user.get('role') or '').strip().lower()
+    district = str(user.get('district') or user.get('district_name') or '').strip().lower()
+    return f"name:{name}|role:{role}|district:{district}"
+
+
+def _merge_users_unique(user_lists):
+    """Merge multiple user arrays and dedupe repeated rows."""
+    merged = []
+    seen = set()
+    for users in user_lists:
+        for user in users:
+            key = _user_dedupe_key(user)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(user)
+    return merged
+
+
+def _fetch_chunked_users(upstream_url, start_date, end_date):
+    """Fetch users across date windows to avoid upstream gateway timeouts."""
+    end_dt = _parse_ymd(end_date) if end_date else datetime.now(timezone.utc)
+    start_dt = _parse_ymd(start_date) if start_date else (end_dt - timedelta(days=APP_USERS_CHUNK_LOOKBACK_DAYS))
+    if start_dt > end_dt:
+        start_dt, end_dt = end_dt, start_dt
+
+    all_chunks = []
+    chunk_errors = []
+    for win_start, win_end in _iterate_windows(start_dt, end_dt, max(1, APP_USERS_CHUNK_DAYS)):
+        try:
+            upstream = _fetch_upstream_json(upstream_url, {'start_date': win_start, 'end_date': win_end})
+            users = _normalize_upstream_users(upstream)
+            if isinstance(users, list) and users:
+                all_chunks.append(users)
+        except Exception as e:
+            chunk_errors.append(f"{win_start}->{win_end}: {_compact_error_message(e)}")
+
+    merged = _merge_users_unique(all_chunks)
+    return merged, chunk_errors
 
 
 def _fetch_upstream_with_httpx(url, body_data):
@@ -789,6 +853,20 @@ def get_app_users():
 
     with _app_users_cache_lock:
         cached = _app_users_cache.get(app_slug)
+
+    # Final external-only recovery: chunked date-window fetching.
+    for upstream_url in upstream_urls:
+        chunk_users, chunk_errors = _fetch_chunked_users(upstream_url, start_date, end_date)
+        if chunk_users:
+            with _app_users_cache_lock:
+                _app_users_cache[app_slug] = {'users': chunk_users, 'cached_at': time.time()}
+            return jsonify({
+                'users': chunk_users,
+                'warning': f'Loaded chunked external data ({len(chunk_users)} users).',
+            }), 200
+        if chunk_errors:
+            errors.extend([f"{upstream_url} chunk: {e}" for e in chunk_errors[:5]])
+
     if cached and isinstance(cached.get('users'), list):
         age = int(time.time() - float(cached.get('cached_at', 0)))
         app.logger.warning(f"Serving cached app-users for {app_slug}; age={age}s")

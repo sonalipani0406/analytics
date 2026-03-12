@@ -4,6 +4,7 @@ import httpx
 import json
 import ssl
 import urllib.request
+import re
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from datetime import datetime, timezone, timedelta
@@ -648,6 +649,16 @@ def _bounded_date_window(days=30):
     return {'start_date': start, 'end_date': end}
 
 
+def _compact_error_message(error):
+    """Return a short, HTML-free error string safe for API responses/log details."""
+    text = str(error) if error is not None else 'Unknown upstream error'
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    if len(text) > 240:
+        text = text[:240] + '...'
+    return text
+
+
 def _fetch_upstream_with_httpx(url, body_data):
     timeout = httpx.Timeout(
         connect=APP_USERS_CONNECT_TIMEOUT_SEC,
@@ -744,8 +755,12 @@ def get_app_users():
     primary_body = {'start_date': start_date, 'end_date': end_date}
     body_candidates = [primary_body]
     if not start_date and not end_date:
-        # When "all" causes upstream 504, retry bounded external range.
-        body_candidates.append(_bounded_date_window(30))
+        # When "all" causes upstream 504, retry progressively smaller external windows.
+        body_candidates.extend([
+            _bounded_date_window(30),
+            _bounded_date_window(7),
+            _bounded_date_window(1),
+        ])
 
     errors = []
     for upstream_url in upstream_urls:
@@ -768,8 +783,9 @@ def get_app_users():
                     response['warning'] = 'Loaded bounded 30-day external data due to upstream timeout/5xx on full range.'
                 return jsonify(response), 200
             except Exception as e:
-                errors.append(f"{upstream_url}: {e}")
-                app.logger.error(f"App-users fetch failed for {app_slug} via {upstream_url}: {e}")
+                safe_error = _compact_error_message(e)
+                errors.append(f"{upstream_url}: {safe_error}")
+                app.logger.error(f"App-users fetch failed for {app_slug} via {upstream_url}: {safe_error}")
 
     with _app_users_cache_lock:
         cached = _app_users_cache.get(app_slug)

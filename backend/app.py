@@ -42,9 +42,11 @@ APP_USERS_RETRIES = int(os.environ.get('APP_USERS_RETRIES', '1'))
 APP_USERS_CHUNK_DAYS = int(os.environ.get('APP_USERS_CHUNK_DAYS', '7'))
 APP_USERS_CHUNK_LOOKBACK_DAYS = int(os.environ.get('APP_USERS_CHUNK_LOOKBACK_DAYS', '90'))
 APP_USERS_TRUST_ENV = os.environ.get('APP_USERS_TRUST_ENV', 'true').lower() == 'true'
+APP_USERS_TOTAL_TIMEOUT_SEC = float(os.environ.get('APP_USERS_TOTAL_TIMEOUT_SEC', '25'))
+APP_USERS_ENABLE_URLLIB_FALLBACK = os.environ.get('APP_USERS_ENABLE_URLLIB_FALLBACK', 'false').lower() == 'true'
 
 
-def _post_upstream_json_with_urllib(url, body_data):
+def _post_upstream_json_with_urllib(url, body_data, max_seconds=None):
     """Fallback HTTP client for environments where httpx networking is unstable."""
     payload = json.dumps(body_data).encode('utf-8')
     req = urllib.request.Request(
@@ -64,6 +66,8 @@ def _post_upstream_json_with_urllib(url, body_data):
     # Match existing behavior: allow non-standard cert chains used by institutional hosts.
     context = ssl._create_unverified_context()
     timeout = APP_USERS_CONNECT_TIMEOUT_SEC + APP_USERS_READ_TIMEOUT_SEC
+    if max_seconds is not None:
+        timeout = max(1.0, min(timeout, float(max_seconds)))
     if APP_USERS_TRUST_ENV:
         with urllib.request.urlopen(req, timeout=timeout, context=context) as response:
             raw = response.read().decode('utf-8', errors='replace')
@@ -706,7 +710,7 @@ def _merge_users_unique(user_lists):
     return merged
 
 
-def _fetch_chunked_users(upstream_url, start_date, end_date):
+def _fetch_chunked_users(upstream_url, start_date, end_date, deadline_monotonic=None):
     """Fetch users across date windows to avoid upstream gateway timeouts."""
     end_dt = _parse_ymd(end_date) if end_date else datetime.now(timezone.utc)
     start_dt = _parse_ymd(start_date) if start_date else (end_dt - timedelta(days=APP_USERS_CHUNK_LOOKBACK_DAYS))
@@ -716,8 +720,21 @@ def _fetch_chunked_users(upstream_url, start_date, end_date):
     all_chunks = []
     chunk_errors = []
     for win_start, win_end in _iterate_windows(start_dt, end_dt, max(1, APP_USERS_CHUNK_DAYS)):
+        if deadline_monotonic is not None and time.monotonic() >= deadline_monotonic:
+            chunk_errors.append('deadline exceeded before completing chunk fetch')
+            break
         try:
-            upstream = _fetch_upstream_json(upstream_url, {'start_date': win_start, 'end_date': win_end})
+            remaining = None
+            if deadline_monotonic is not None:
+                remaining = deadline_monotonic - time.monotonic()
+                if remaining <= 0:
+                    chunk_errors.append('deadline exceeded before chunk request')
+                    break
+            upstream = _fetch_upstream_json(
+                upstream_url,
+                {'start_date': win_start, 'end_date': win_end},
+                max_seconds=remaining,
+            )
             users = _normalize_upstream_users(upstream)
             if isinstance(users, list) and users:
                 all_chunks.append(users)
@@ -728,12 +745,21 @@ def _fetch_chunked_users(upstream_url, start_date, end_date):
     return merged, chunk_errors
 
 
-def _fetch_upstream_with_httpx(url, body_data):
+def _fetch_upstream_with_httpx(url, body_data, max_seconds=None):
+    connect_timeout = APP_USERS_CONNECT_TIMEOUT_SEC
+    read_timeout = APP_USERS_READ_TIMEOUT_SEC
+    if max_seconds is not None:
+        max_seconds = float(max_seconds)
+        if max_seconds <= 0:
+            raise TimeoutError('deadline exceeded before httpx request')
+        connect_timeout = max(1.0, min(connect_timeout, max_seconds / 2.0, max_seconds))
+        read_timeout = max(1.0, min(read_timeout, max_seconds))
+
     timeout = httpx.Timeout(
-        connect=APP_USERS_CONNECT_TIMEOUT_SEC,
-        read=APP_USERS_READ_TIMEOUT_SEC,
-        write=APP_USERS_CONNECT_TIMEOUT_SEC,
-        pool=APP_USERS_CONNECT_TIMEOUT_SEC,
+        connect=connect_timeout,
+        read=read_timeout,
+        write=connect_timeout,
+        pool=connect_timeout,
     )
     with httpx.Client(verify=False, timeout=timeout, follow_redirects=True, trust_env=APP_USERS_TRUST_ENV) as client:
         resp = None
@@ -772,13 +798,15 @@ def _fetch_upstream_with_httpx(url, body_data):
     return resp.json()
 
 
-def _fetch_upstream_json(url, body_data):
+def _fetch_upstream_json(url, body_data, max_seconds=None):
     """Fetch JSON from upstream using httpx, then urllib as fallback."""
     try:
-        return _fetch_upstream_with_httpx(url, body_data)
+        return _fetch_upstream_with_httpx(url, body_data, max_seconds=max_seconds)
     except Exception as first_error:
         app.logger.warning(f"httpx failed for {url}: {first_error}")
-        return _post_upstream_json_with_urllib(url, body_data)
+        if not APP_USERS_ENABLE_URLLIB_FALLBACK:
+            raise
+        return _post_upstream_json_with_urllib(url, body_data, max_seconds=max_seconds)
 
 
 @app.route('/api/app-users', methods=['GET', 'POST', 'OPTIONS'])
@@ -794,6 +822,8 @@ def get_app_users():
     start_date : ISO date string – overrides period-based calculation
     end_date   : ISO date string – overrides period-based calculation
     """
+    request_deadline = time.monotonic() + APP_USERS_TOTAL_TIMEOUT_SEC
+
     if request.method == 'OPTIONS':
         return '', 200
 
@@ -834,11 +864,15 @@ def get_app_users():
     errors = []
     for upstream_url in upstream_urls:
         for body_data in body_candidates:
+            remaining = request_deadline - time.monotonic()
+            if remaining <= 0:
+                errors.append('request deadline exceeded before upstream request')
+                break
             app.logger.info(
                 f"app-users -> {upstream_url} app={app_slug} start={body_data.get('start_date')!r} end={body_data.get('end_date')!r}"
             )
             try:
-                upstream = _fetch_upstream_json(upstream_url, body_data)
+                upstream = _fetch_upstream_json(upstream_url, body_data, max_seconds=remaining)
                 users = _normalize_upstream_users(upstream)
                 if users is None:
                     errors.append(f"{upstream_url}: unsupported payload shape")
@@ -861,7 +895,15 @@ def get_app_users():
 
     # Final external-only recovery: chunked date-window fetching.
     for upstream_url in upstream_urls:
-        chunk_users, chunk_errors = _fetch_chunked_users(upstream_url, start_date, end_date)
+        if time.monotonic() >= request_deadline:
+            errors.append('request deadline exceeded before chunked recovery')
+            break
+        chunk_users, chunk_errors = _fetch_chunked_users(
+            upstream_url,
+            start_date,
+            end_date,
+            deadline_monotonic=request_deadline,
+        )
         if chunk_users:
             with _app_users_cache_lock:
                 _app_users_cache[app_slug] = {'users': chunk_users, 'cached_at': time.time()}

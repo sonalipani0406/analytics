@@ -44,6 +44,7 @@ APP_USERS_CHUNK_LOOKBACK_DAYS = int(os.environ.get('APP_USERS_CHUNK_LOOKBACK_DAY
 APP_USERS_TRUST_ENV = os.environ.get('APP_USERS_TRUST_ENV', 'true').lower() == 'true'
 APP_USERS_TOTAL_TIMEOUT_SEC = float(os.environ.get('APP_USERS_TOTAL_TIMEOUT_SEC', '25'))
 APP_USERS_ENABLE_URLLIB_FALLBACK = os.environ.get('APP_USERS_ENABLE_URLLIB_FALLBACK', 'false').lower() == 'true'
+APP_USERS_FORCE_IPV4 = os.environ.get('APP_USERS_FORCE_IPV4', 'true').lower() == 'true'
 
 
 def _post_upstream_json_with_urllib(url, body_data, max_seconds=None):
@@ -761,7 +762,18 @@ def _fetch_upstream_with_httpx(url, body_data, max_seconds=None):
         write=connect_timeout,
         pool=connect_timeout,
     )
-    with httpx.Client(verify=False, timeout=timeout, follow_redirects=True, trust_env=APP_USERS_TRUST_ENV) as client:
+    transport = None
+    if APP_USERS_FORCE_IPV4:
+        # Force IPv4 path from containers where IPv6 resolution/routing hangs.
+        transport = httpx.HTTPTransport(local_address='0.0.0.0', retries=0)
+
+    with httpx.Client(
+        verify=False,
+        timeout=timeout,
+        follow_redirects=True,
+        trust_env=APP_USERS_TRUST_ENV,
+        transport=transport,
+    ) as client:
         resp = None
         for attempt in range(APP_USERS_RETRIES + 1):
             try:

@@ -42,6 +42,7 @@ services:
       - APP_USERS_TOTAL_TIMEOUT_SEC=25
       - APP_USERS_ENABLE_URLLIB_FALLBACK=false
       - APP_USERS_TRUST_ENV=true
+      - APP_USERS_FORCE_IPV4=true
     depends_on:
       db:
         condition: service_healthy

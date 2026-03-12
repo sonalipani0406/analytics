@@ -38,9 +38,31 @@ function useMap() {
   return context;
 }
 
-const defaultStyles = {
-  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+const defaultStyles: { dark: MapLibreGL.StyleSpecification; light: MapLibreGL.StyleSpecification } = {
+  dark: {
+    version: 8,
+    name: "local-dark-blank",
+    sources: {},
+    layers: [
+      {
+        id: "background",
+        type: "background",
+        paint: { "background-color": "#111827" },
+      },
+    ],
+  },
+  light: {
+    version: 8,
+    name: "local-light-blank",
+    sources: {},
+    layers: [
+      {
+        id: "background",
+        type: "background",
+        paint: { "background-color": "#f3f4f6" },
+      },
+    ],
+  },
 };
 
 type MapStyleOption = string | MapLibreGL.StyleSpecification;

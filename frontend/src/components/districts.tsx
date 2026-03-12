@@ -23,7 +23,6 @@ type ColDef = { key: string; label: string };
 //
 //   value    : unique slug (used internally)
 //   label    : name shown in the dropdown
-//   url      : POST endpoint that returns user data
 //   payload  : function → JSON body sent to the API (adjust keys per app)
 //   extract  : function → pulls the raw array out of the API response
 //   loginKey : field name(s) that hold the last-login timestamp (for period filter)
@@ -36,7 +35,6 @@ type ColDef = { key: string; label: string };
 const APP_OPTIONS: {
   value: string;
   label: string;
-  url: string;
   payload: (start: string, end: string) => Record<string, string>;
   extract: (json: any) => AppUser[];
   loginKey: string[];
@@ -49,7 +47,6 @@ const APP_OPTIONS: {
   {
     value:    "fps",
     label:    "FPS App",
-    url:      "https://coers.iitm.ac.in/fsa/user_det",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
       if (Array.isArray(json))              return json;
@@ -89,7 +86,6 @@ const APP_OPTIONS: {
   {
     value:    "sanjaya",
     label:    "Sanjaya App",
-    url:      "https://rbg.iitm.ac.in/get_details/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
       if (!json?.details) return [];
@@ -133,7 +129,6 @@ const APP_OPTIONS: {
   {
     value:    "tpl",
     label:    "TPL App",
-    url:      "https://rbg.iitm.ac.in/bs_ddhi/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
       if (Array.isArray(json?.details?.users)) return json.details.users;
@@ -285,7 +280,7 @@ export default function Districts({ canExport = false }: DistrictsProps) {
     return periodToDates(localPeriod);
   }, [localPeriod, customStart, customEnd]);
 
-  // ── Fetch directly from external API ─────────────────────────────────
+  // ── Fetch app users via internal API proxy (same-origin only) ───────
   useEffect(() => {
     // Capture the config for this specific app at the time the effect fires
     const cfg = APP_OPTIONS.find(a => a.value === selectedApp) ?? APP_OPTIONS[0];
@@ -297,10 +292,13 @@ export default function Districts({ canExport = false }: DistrictsProps) {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        const res = await fetch(cfg.url, {
+        const res = await fetch("/api/app-users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(cfg.payload(derivedStart, derivedEnd)),
+          body: JSON.stringify({
+            app: cfg.value,
+            ...cfg.payload(derivedStart, derivedEnd),
+          }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -311,8 +309,8 @@ export default function Districts({ canExport = false }: DistrictsProps) {
           throw new Error(json.status);
         }
 
-        // Use the per-app extract fn to pull the correct array from the response
-        const raw: AppUser[] = cfg.extract(json);
+        // Prefer normalized proxy response; fall back to app extractors.
+        const raw: AppUser[] = Array.isArray(json?.users) ? json.users : cfg.extract(json);
         if (!Array.isArray(raw)) {
           console.error(`[${cfg.label}] Extract returned non-array:`, raw);
           throw new Error(`Extract failed: returned ${typeof raw}`);

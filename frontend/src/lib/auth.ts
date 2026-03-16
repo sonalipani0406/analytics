@@ -24,14 +24,14 @@ const CREDENTIALS: CredentialRecord[] = [
     displayName: "Super Admin",
     role: "super_admin",
     salt: "rbg-super-2026",
-    passwordHash: "16330cd5a841844cec13f77d5e66c04fb5f16c789b1a55c31b6f218625c2d3ca",
+    passwordHash: "706b00cc8a4ae121cf629ca8e603e705f61514ba1547331233bef0790dfeafa0",
   },
   {
     username: "coersuser",
     displayName: "Admin",
     role: "admin",
     salt: "rbg-admin-2026",
-    passwordHash: "89db6e2a65d530933948be1d0482bf7100939a27751aa1d501ef132aea54bfa7",
+    passwordHash: "871b474c338e799ac1ad4ebff74b16235c6c72dbcf9bfedcdc6746e833e72f1c",
   },
 ];
 

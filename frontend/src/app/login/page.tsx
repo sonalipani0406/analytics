@@ -1,125 +1,120 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertCircle, Loader, LockKeyhole, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Loader } from "lucide-react";
-
-declare global {
-  interface Window {
-    google: any;
-  }
-}
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { authenticateUser, getStoredSession, storeSession } from "@/lib/auth";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    // Initialize Google Sign-In with hardcoded Client ID
-    const initializeGoogleSignIn = () => {
-      const clientId = "753011261618-k46db0seqt8d5m0lljb14378ogrium9f.apps.googleusercontent.com"; // Hardcoded Client ID
-      
-      if (!window.google || !window.google.accounts) {
-        // Retry after a short delay if Google not ready
-        setTimeout(initializeGoogleSignIn, 200);
-        return;
-      }
+    const existingSession = getStoredSession();
+    if (existingSession) {
+      router.replace("/");
+    }
+  }, [router]);
 
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleCredentialResponse,
-        });
-
-        const buttonContainer = document.getElementById("google-signin-button");
-        if (buttonContainer) {
-          window.google.accounts.id.renderButton(buttonContainer, {
-            theme: "outline",
-            size: "large",
-            text: "signin_with",
-            width: "280",
-          });
-        }
-      } catch (err) {
-        console.error("Google Sign-In initialization error:", err);
-      }
-    };
-
-    initializeGoogleSignIn();
-  }, []);
-
-  const handleCredentialResponse = async (response: any) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      // Send token to backend
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token: response.credential,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Authentication failed");
+      const session = await authenticateUser(username, password);
+      if (!session) {
+        setError("Invalid username or password.");
         setIsLoading(false);
         return;
       }
 
-      // Store JWT token in localStorage
-      localStorage.setItem("authToken", data.token);
-      localStorage.setItem("userData", JSON.stringify(data.user));
-
-      // Redirect to dashboard
-      router.push("/");
-    } catch (err) {
-      setError("Login failed. Please try again.");
-      console.error("Login error:", err);
+      storeSession(session);
+      router.replace("/");
+    } catch (loginError) {
+      console.error("Login failed:", loginError);
+      setError("Unable to login right now. Please try again.");
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md shadow-2xl border border-border">
+      <Card className="w-full max-w-md shadow-xl border border-border">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-3xl font-bold">Analytics Dashboard</CardTitle>
-          <CardDescription>
-            Sign in with your organization email
-          </CardDescription>
+          <CardTitle className="text-3xl font-bold tracking-tight">Analytics Dashboard</CardTitle>
+          <CardDescription>Sign in to continue</CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-6">
-          <div id="google-signin-button" className="flex justify-center min-h-[50px]" />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <div className="relative">
+                <User className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="Enter username"
+                  className="pl-9"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <LockKeyhole className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter password"
+                  className="pl-9"
+                  required
+                />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader className="h-4 w-4 animate-spin" />
+                  Signing in...
+                </span>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
+          </form>
 
           {error && (
             <div className="p-3 bg-red-100 dark:bg-red-900 border border-red-400 text-red-700 dark:text-red-200 rounded flex gap-2">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-sm">Sign-in Error</p>
+                <p className="font-semibold text-sm">Authentication Error</p>
                 <p className="text-sm mt-1">{error}</p>
               </div>
             </div>
           )}
 
-          {isLoading && (
-            <div className="flex flex-col items-center justify-center py-4">
-              <Loader className="w-6 h-6 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground mt-2">Signing in...</p>
-            </div>
-          )}
-
-          <div className="text-center text-xs text-muted-foreground border-t pt-4">
-            <p><strong>Access Policy:</strong></p>
-            <p className="mt-1">Only authorized organization email addresses are allowed to access this dashboard.</p>
+          <div className="text-xs text-muted-foreground border-t pt-4 space-y-1">
+            <p className="font-semibold">Demo Accounts</p>
+            <p>`super.admin` has full access including Excel export.</p>
+            <p>`admin.viewer` has view-only dashboard access.</p>
           </div>
         </CardContent>
       </Card>

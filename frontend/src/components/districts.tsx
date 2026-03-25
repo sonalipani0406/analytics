@@ -137,12 +137,20 @@ const APP_OPTIONS: {
     url:      "https://rbg.iitm.ac.in/bs_ddhi/export_all_data",
     payload:  (start, end) => ({ start_date: start, end_date: end }),
     extract:  (json: any): AppUser[] => {
-      if (Array.isArray(json?.details?.users)) return json.details.users;
-      return [];
+      if (!json?.details) return [];
+      const result: AppUser[] = [];
+      if (Array.isArray(json.details.users)) {
+        result.push(...json.details.users.map((u: any) => ({ ...u, _user_type: "User" })));
+      }
+      if (Array.isArray(json.details.admins)) {
+        result.push(...json.details.admins.map((a: any) => ({ ...a, _user_type: "Admin" })));
+      }
+      return result;
     },
     loginKey: ["last_login"], // confirmed present in API response
     columns: [
       { key: "user_id",       label: "User ID"       },
+      { key: "user_type",     label: "User Type"     },
       { key: "state",         label: "State"         },
       { key: "district",      label: "District"      },
       { key: "hospital_name", label: "Hospital Name" },
@@ -150,7 +158,8 @@ const APP_OPTIONS: {
       { key: "last_login",    label: "Last Login"    },
     ],
     normalise: (d: AppUser): AppUser => ({
-      user_id:       d.user_id       || String(d.userid ?? "") || "",
+      user_id:       d.user_id       || d.admin_uid || String(d.userid ?? "") || String(d.admin_id ?? "") || "",
+      user_type:     d._user_type    || d.admin_role || "User",
       state:         d.state_name    || d.state                || "",
       district:      d.district_name || d.district             || "",
       hospital_name: d.hospname      || d.hospital_name        || d.hospital || "",
@@ -158,6 +167,7 @@ const APP_OPTIONS: {
       last_login:    (d.last_login   || "").split(" ")[0],
     }),
     extraFilters: [
+      { key: "user_type", label: "User Type" },
       { key: "category", label: "Hospital Type" },
     ],
   },

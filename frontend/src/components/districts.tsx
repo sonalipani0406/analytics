@@ -75,7 +75,7 @@ const APP_OPTIONS: {
       user_name:      d.rep_name       || d.user_name    || d.name          || d.username || "",
       user_role:      d.user_role      || d.role         || "",
       designation:    d.type           || d.designation  || "",
-      created_on:     (d.created_at    || d.created_on   || "").split(" ")[0],
+      created_on:     toDateOnly(d.created_at || d.created_on),
       state:          d.state_name     || d.state        || "",
       district:       d.district_name  || d.district     || "",
       police_station: d.police_station || d.ps           || d.policeStation || "",
@@ -209,6 +209,22 @@ function sanitizeFilePart(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+function toDateOnly(value: unknown): string {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+
+  const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDate) return isoDate[1];
+
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split("T")[0];
+  }
+
+  return raw;
 }
 
 /** Convert a local period value into explicit start/end date strings (YYYY-MM-DD). */

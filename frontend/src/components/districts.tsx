@@ -51,7 +51,7 @@ const APP_OPTIONS: {
     value:    "fps",
     label:    "FPS App",
     url:      "https://coers.iitm.ac.in/fsa/user_det",
-    payload:  (start, end) => ({ start_date: start, end_date: end }),
+    payload:  (_start, _end) => ({ start_date: "", end_date: "" }),
     extract:  (json: any): AppUser[] => {
       if (Array.isArray(json))              return json;
       if (Array.isArray(json?.details))     return json.details;
@@ -66,6 +66,7 @@ const APP_OPTIONS: {
       { key: "user_role",      label: "User Role"      },
       { key: "designation",    label: "Designation"    },
       { key: "created_on",     label: "Created On"     },
+      { key: "created_by",     label: "Created By"     },
       { key: "state",          label: "State"          },
       { key: "district",       label: "District"       },
       { key: "police_station", label: "Police Station" },
@@ -76,6 +77,7 @@ const APP_OPTIONS: {
       user_role:      d.user_role      || d.role         || "",
       designation:    d.type           || d.designation  || "",
       created_on:     toDateOnly(d.created_at || d.created_on),
+      created_by:     d.created_by     || d.createdby    || d.createdBy || "",
       state:          d.state_name     || d.state        || "",
       district:       d.district_name  || d.district     || "",
       police_station: d.police_station || d.ps           || d.policeStation || "",
